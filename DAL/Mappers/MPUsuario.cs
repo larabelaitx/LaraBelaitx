@@ -4,6 +4,7 @@ using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using DAL; 
 
 namespace DAL.Mappers
 {
@@ -18,7 +19,6 @@ namespace DAL.Mappers
             {
                 _instance = new MPUsuario();
             }
-
             return _instance;
         }
         #endregion
@@ -36,7 +36,7 @@ namespace DAL.Mappers
                     UserName = dt.Rows[0].Field<string>("Usuario"),
                     Password = dt.Rows[0].Field<string>("Password"),
                     Tries = dt.Rows[0].Field<int>("NroIntentos"),
-                    Permisos = new List<Permiso>(),
+                    Permisos = new List<BE.Permiso>(), // <-- antes: new List<Permiso>()
                     Language = IdiomaDao.GetInstance().GetById(dt.Rows[0].Field<int>("IdIdioma")),
                     Enabled = EstadoDao.GetInstance().GetById(dt.Rows[0].Field<int>("IdEstado"))
                 };
@@ -49,9 +49,9 @@ namespace DAL.Mappers
 
                 if (familiasUsuario.Count() >= 1)
                 {
-                    foreach (Familia familia in familiasUsuario)
+                    foreach (BE.Familia familia in familiasUsuario) // <-- antes: Familia
                     {
-                        foreach (Permiso permiso in familia.Patentes)
+                        foreach (BE.Permiso permiso in familia.Patentes) // <-- antes: Permiso
                         {
                             if (!permisosUsuario.Any(x => x.Id == permiso.Id))
                                 permisosUsuario.Add(permiso);
@@ -60,19 +60,17 @@ namespace DAL.Mappers
                 }
                 if (permisosUsuario.Count() >= 1)
                 {
-                    foreach (Permiso permiso in permisosUsuario)
+                    foreach (BE.Permiso permiso in permisosUsuario) // <-- antes: Permiso
                     {
                         usuario.Permisos.Add(permiso);
                     }
                 }
 
                 return usuario;
-
             }
             catch (Exception e)
             {
-
-                throw e;
+                throw e; // lo dejo igual 
             }
         }
 
@@ -83,7 +81,7 @@ namespace DAL.Mappers
                 List<BE.Usuario> usuarios = new List<BE.Usuario>();
                 foreach (DataRow dr in dt.Rows)
                 {
-                    BE.Usuario usuario = (new BE.Usuario()
+                    BE.Usuario usuario = new BE.Usuario()
                     {
                         Id = dr.Field<int>("IdUsuario"),
                         Name = dr.Field<string>("Nombre"),
@@ -91,11 +89,11 @@ namespace DAL.Mappers
                         LastName = dr.Field<string>("Apellido"),
                         Email = dr.Field<string>("Mail"),
                         Password = dr.Field<string>("Password"),
-                        Permisos = new List<Permiso>(),
+                        Permisos = new List<BE.Permiso>(), // <-- antes: new List<Permiso>()
                         Tries = dr.Field<int>("NroIntentos"),
                         Language = IdiomaDao.GetInstance().GetById(dr.Field<int>("IdIdioma")),
                         Enabled = EstadoDao.GetInstance().GetById(dr.Field<int>("IdEstado"))
-                    }); ;
+                    };
 
                     HashSet<BE.Permiso> permisosUsuario = new HashSet<BE.Permiso>();
                     List<BE.Familia> familiasUsuario = new List<BE.Familia>();
@@ -105,9 +103,9 @@ namespace DAL.Mappers
 
                     if (familiasUsuario.Count() >= 1)
                     {
-                        foreach (Familia familia in familiasUsuario)
+                        foreach (BE.Familia familia in familiasUsuario) // <-- antes: Familia
                         {
-                            foreach (Permiso permiso in familia.Patentes)
+                            foreach (BE.Permiso permiso in familia.Patentes) // <-- antes: Permiso
                             {
                                 if (!permisosUsuario.Any(x => x.Id == permiso.Id))
                                     permisosUsuario.Add(permiso);
@@ -116,24 +114,19 @@ namespace DAL.Mappers
                     }
                     if (permisosUsuario.Count() >= 1)
                     {
-                        foreach (Permiso permiso in permisosUsuario)
+                        foreach (BE.Permiso permiso in permisosUsuario) // <-- antes: Permiso
                         {
                             usuario.Permisos.Add(permiso);
                         }
                     }
                     usuarios.Add(usuario);
-
                 }
-                ;
-
 
                 return usuarios;
-
             }
             catch (Exception e)
             {
-
-                throw e;
+                throw e; // lo dejo igual
             }
         }
     }

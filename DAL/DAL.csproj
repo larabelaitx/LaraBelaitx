@@ -41,24 +41,30 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BitacoraDAO.cs" />
+    <Compile Include="BitacoraDao.cs" />
     <Compile Include="DBDao.cs" />
     <Compile Include="DVHDao.cs" />
     <Compile Include="DVVDao.cs" />
     <Compile Include="EstadoDao.cs" />
     <Compile Include="FamiliaDao.cs" />
     <Compile Include="IdiomaDao.cs" />
+    <Compile Include="ClienteDao.cs" />
+    <Compile Include="CuentaDao.cs" />
     <Compile Include="Mappers\ICRUD.cs" />
     <Compile Include="Mappers\MPBitacora.cs" />
+    <Compile Include="Mappers\MPCliente.cs" />
+    <Compile Include="Mappers\MPCuenta.cs" />
     <Compile Include="Mappers\MPDVH.cs" />
     <Compile Include="Mappers\MPDVV.cs" />
     <Compile Include="Mappers\MPEstado.cs" />
     <Compile Include="Mappers\MPFamilia.cs" />
     <Compile Include="Mappers\MPIdioma.cs" />
     <Compile Include="Mappers\MPPatente.cs" />
+    <Compile Include="Mappers\MPTarjeta.cs" />
     <Compile Include="Mappers\MPUsuario.cs" />
     <Compile Include="PatenteDao.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TarjetaDao.cs" />
     <Compile Include="TranslatorDao.cs" />
     <Compile Include="UsuarioDao.cs" />
   </ItemGroup>

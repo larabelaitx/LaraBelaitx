@@ -1,11 +1,18 @@
-﻿using System;
+﻿using BE;
+using DAL.Mappers;
+using Services;
+using Servicios.Helpers;
+using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Data.SqlClient;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using DAL.Mappers;
+using System.Xml.Linq;             
+using Services = Servicios;     
+
 
 namespace DAL
 {
@@ -119,6 +126,7 @@ namespace DAL
             }
             catch (Exception e)
             {
+
                 throw e;
             }
 

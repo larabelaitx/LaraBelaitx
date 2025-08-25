@@ -6,7 +6,9 @@ using System.Threading.Tasks;
 
 namespace BE
 {
-    public class Class1
+    public class Idioma
     {
+        public int Id { get; set; }
+        public string Name { get; set; }
     }
 }
