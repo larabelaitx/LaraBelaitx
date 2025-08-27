@@ -54,12 +54,12 @@
             this.txtCUIT = new System.Windows.Forms.TextBox();
             this.txtDomicilio = new System.Windows.Forms.TextBox();
             this.txtTelefono = new System.Windows.Forms.TextBox();
-            this.txtCorreoElectronico = new System.Windows.Forms.TextBox();
+            this.txtCorreo = new System.Windows.Forms.TextBox();
             this.txtOcupacion = new System.Windows.Forms.TextBox();
             this.dtpFechaNacimiento = new System.Windows.Forms.DateTimePicker();
             this.cboEstadoCivil = new System.Windows.Forms.ComboBox();
             this.cboSituacionFiscal = new System.Windows.Forms.ComboBox();
-            this.cboPEP = new System.Windows.Forms.ComboBox();
+            this.cboEsPep = new System.Windows.Forms.ComboBox();
             this.panel1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -297,12 +297,12 @@
             this.txtTelefono.Size = new System.Drawing.Size(228, 22);
             this.txtTelefono.TabIndex = 41;
             // 
-            // txtCorreoElectronico
+            // txtCorreo
             // 
-            this.txtCorreoElectronico.Location = new System.Drawing.Point(256, 283);
-            this.txtCorreoElectronico.Name = "txtCorreoElectronico";
-            this.txtCorreoElectronico.Size = new System.Drawing.Size(228, 22);
-            this.txtCorreoElectronico.TabIndex = 42;
+            this.txtCorreo.Location = new System.Drawing.Point(256, 283);
+            this.txtCorreo.Name = "txtCorreo";
+            this.txtCorreo.Size = new System.Drawing.Size(228, 22);
+            this.txtCorreo.TabIndex = 42;
             // 
             // txtOcupacion
             // 
@@ -334,25 +334,25 @@
             this.cboSituacionFiscal.Size = new System.Drawing.Size(228, 24);
             this.cboSituacionFiscal.TabIndex = 46;
             // 
-            // cboPEP
+            // cboEsPep
             // 
-            this.cboPEP.FormattingEnabled = true;
-            this.cboPEP.Location = new System.Drawing.Point(743, 330);
-            this.cboPEP.Name = "cboPEP";
-            this.cboPEP.Size = new System.Drawing.Size(228, 24);
-            this.cboPEP.TabIndex = 47;
+            this.cboEsPep.FormattingEnabled = true;
+            this.cboEsPep.Location = new System.Drawing.Point(743, 330);
+            this.cboEsPep.Name = "cboEsPep";
+            this.cboEsPep.Size = new System.Drawing.Size(228, 24);
+            this.cboEsPep.TabIndex = 47;
             // 
             // AltaCliente
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1081, 450);
-            this.Controls.Add(this.cboPEP);
+            this.ClientSize = new System.Drawing.Size(1083, 443);
+            this.Controls.Add(this.cboEsPep);
             this.Controls.Add(this.cboSituacionFiscal);
             this.Controls.Add(this.cboEstadoCivil);
             this.Controls.Add(this.dtpFechaNacimiento);
             this.Controls.Add(this.txtOcupacion);
-            this.Controls.Add(this.txtCorreoElectronico);
+            this.Controls.Add(this.txtCorreo);
             this.Controls.Add(this.txtTelefono);
             this.Controls.Add(this.txtDomicilio);
             this.Controls.Add(this.txtCUIT);
@@ -378,7 +378,7 @@
             this.Controls.Add(this.label1);
             this.Controls.Add(this.panel1);
             this.Name = "AltaCliente";
-            this.Text = "AltaCliente";
+            this.Text = ">";
             this.Load += new System.EventHandler(this.AltaCliente_Load);
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();
@@ -415,11 +415,11 @@
         private System.Windows.Forms.TextBox txtCUIT;
         private System.Windows.Forms.TextBox txtDomicilio;
         private System.Windows.Forms.TextBox txtTelefono;
-        private System.Windows.Forms.TextBox txtCorreoElectronico;
+        private System.Windows.Forms.TextBox txtCorreo;
         private System.Windows.Forms.TextBox txtOcupacion;
         private System.Windows.Forms.DateTimePicker dtpFechaNacimiento;
         private System.Windows.Forms.ComboBox cboEstadoCivil;
         private System.Windows.Forms.ComboBox cboSituacionFiscal;
-        private System.Windows.Forms.ComboBox cboPEP;
+        private System.Windows.Forms.ComboBox cboEsPep;
     }
 }
