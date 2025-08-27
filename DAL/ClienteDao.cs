@@ -2,17 +2,15 @@
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Services;
 
 namespace DAL.Mappers
 {
     public class ClienteDao : Mappers.ICRUD<BE.Cliente>
     {
         private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Services.Security.Crypto.Decript(
-            Services.Helpers.FileHelper.GetInstance(configFilePath).ReadFile());
+        private static string _connString = Crypto.Decript(
+            FileHelper.GetInstance(configFilePath).ReadFile());
 
         private static ClienteDao _instance;
         public static ClienteDao GetInstance() => _instance ?? (_instance = new ClienteDao());

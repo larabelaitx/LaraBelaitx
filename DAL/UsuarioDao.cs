@@ -1,17 +1,10 @@
-﻿using BE;
-using DAL.Mappers;
-using Services;
-using Servicios.Helpers;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Data.SqlClient;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;             
-using Services = Servicios;     
+using BE;
+using DAL.Mappers;
+using Services;
 
 
 namespace DAL
@@ -20,7 +13,7 @@ namespace DAL
     {
 
         private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Services.Security.Crypto.Decript(Services.Helpers.FileHelper.GetInstance(configFilePath).ReadFile());
+        private static string _connString = Crypto.Decript(FileHelper.GetInstance(configFilePath).ReadFile());
 
         #region Singleton
         private static UsuarioDao _instance;
@@ -42,7 +35,7 @@ namespace DAL
             List<SqlParameter> parameter = new List<SqlParameter>();
             parameter.Add(new SqlParameter("@idUsuario", idUsuario));
 
-            return Mappers.MPUsuario.GetInstance().MapUser(Services.SqlHelpers.GetInstance(_connString).GetDataTable(SelectId, parameter));
+            return Mappers.MPUsuario.GetInstance().MapUser(SqlHelpers.GetInstance(_connString).GetDataTable(SelectId, parameter));
         }
         public BE.Usuario GetByUserName(string username)
         {
@@ -50,7 +43,7 @@ namespace DAL
             List<SqlParameter> parameter = new List<SqlParameter>();
             parameter.Add(new SqlParameter("@user", username));
 
-            return Mappers.MPUsuario.GetInstance().MapUser(Services.SqlHelpers.GetInstance(_connString).GetDataTable(SelectId, parameter));
+            return Mappers.MPUsuario.GetInstance().MapUser(SqlHelpers.GetInstance(_connString).GetDataTable(SelectId, parameter));
         }
         public bool Add(Usuario usuario, DVH dvh)
         {
@@ -59,7 +52,7 @@ namespace DAL
             string checkPrev = "SELECT COUNT(*) FROM Usuario WHERE Usuario = @username OR Mail= @email";
             try
             {
-                if ((int)Services.SqlHelpers.GetInstance(_connString).ExecuteScalar(checkPrev, new List<SqlParameter> { new SqlParameter("@username", usuario.UserName), new SqlParameter("@email", usuario.Email) }) > 0)
+                if ((int)SqlHelpers.GetInstance(_connString).ExecuteScalar(checkPrev, new List<SqlParameter> { new SqlParameter("@username", usuario.UserName), new SqlParameter("@email", usuario.Email) }) > 0)
                 {
                     throw new Exception(message: "Email o Usuario ya registrado");
                 }
@@ -76,7 +69,7 @@ namespace DAL
                     sqlParams.Add(new SqlParameter("@Mail", usuario.Email));
                     sqlParams.Add(new SqlParameter("@NroIntentos", usuario.Tries));
                     sqlParams.Add(new SqlParameter("@DVH", dvh.dvh));
-                    if (Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(queryInsert, sqlParams) > 0)
+                    if (SqlHelpers.GetInstance(_connString).ExecuteQuery(queryInsert, sqlParams) > 0)
                     {
                         returnValue = true;
                         DVV dvv = new DVV()
@@ -195,7 +188,7 @@ namespace DAL
                     new SqlParameter("@user", user),
                     new SqlParameter("@password", password)
                 };
-                if ((int)Services.SqlHelpers.GetInstance(_connString).ExecuteScalar(selectQuery, sqlParams) > 0)
+                if ((int)SqlHelpers.GetInstance(_connString).ExecuteScalar(selectQuery, sqlParams) > 0)
                 {
                     result = true;
                 }
@@ -224,10 +217,10 @@ namespace DAL
                     new SqlParameter("@idFamilia", familia.Id),
                     new SqlParameter("@dvh", dvh.dvh)
                 };
-                int count = (int)Services.SqlHelpers.GetInstance(_connString).ExecuteScalar(queryCheckExistence, new List<SqlParameter> { new SqlParameter("@idFamilia", familia.Id), new SqlParameter("@idUsuario", usuario.Id) });
+                int count = (int)SqlHelpers.GetInstance(_connString).ExecuteScalar(queryCheckExistence, new List<SqlParameter> { new SqlParameter("@idFamilia", familia.Id), new SqlParameter("@idUsuario", usuario.Id) });
                 if (count > 0)
                 {
-                    if (Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(queryUpdate, sqlParams) > 0)
+                    if (SqlHelpers.GetInstance(_connString).ExecuteQuery(queryUpdate, sqlParams) > 0)
                     {
                         result = true;
                         DVV dvv = new DVV()
@@ -241,7 +234,7 @@ namespace DAL
                 else
                 {
 
-                    if (Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(insertQuery, sqlParams) > 0)
+                    if (SqlHelpers.GetInstance(_connString).ExecuteQuery(insertQuery, sqlParams) > 0)
                     {
                         result = true;
                         DVV dvv = new DVV()
@@ -272,7 +265,7 @@ namespace DAL
             };
             try
             {
-                if (Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(queryDelUsuarioFamilia, sqlParams) > 0)
+                if (SqlHelpers.GetInstance(_connString).ExecuteQuery(queryDelUsuarioFamilia, sqlParams) > 0)
                 {
                     result = true;
                     DVV dvv = new DVV()
@@ -311,7 +304,7 @@ namespace DAL
                         throw new Exception(message: string.Format("No se puede eliminar el Usuario de la Familia, ya que quedaría la patente {0} sin asignar", patente.Name));
                     }
                 }
-                if (Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(queryDelUsuarioFamilia, sqlParams) > 0)
+                if (SqlHelpers.GetInstance(_connString).ExecuteQuery(queryDelUsuarioFamilia, sqlParams) > 0)
                 {
                     result = true;
                     DVV dvv = new DVV()
@@ -346,10 +339,10 @@ namespace DAL
                     new SqlParameter("@idPatente", patente.Id),
                     new SqlParameter("@dvh", dvh.dvh)
                 };
-                int count = (int)Services.SqlHelpers.GetInstance(_connString).ExecuteScalar(queryCheckExistence, new List<SqlParameter> { new SqlParameter("@idPatente", patente.Id), new SqlParameter("@idUsuario", usuario.Id) });
+                int count = (int)SqlHelpers.GetInstance(_connString).ExecuteScalar(queryCheckExistence, new List<SqlParameter> { new SqlParameter("@idPatente", patente.Id), new SqlParameter("@idUsuario", usuario.Id) });
                 if (count > 0)
                 {
-                    if (Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(queryUpdate, sqlParams) > 0)
+                    if (SqlHelpers.GetInstance(_connString).ExecuteQuery(queryUpdate, sqlParams) > 0)
                     {
                         result = true;
                         DVV dvv = new DVV()
@@ -364,7 +357,7 @@ namespace DAL
                 }
                 else
                 {
-                    if (Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(insertQuery, sqlParams) > 0)
+                    if (SqlHelpers.GetInstance(_connString).ExecuteQuery(insertQuery, sqlParams) > 0)
                     {
                         result = true;
                         DVV dvv = new DVV()
@@ -403,7 +396,7 @@ namespace DAL
                 {
                     throw new Exception(message: "No se puede eliminar la Patente del Usuario, ya que quedaría sin asignar");
                 }
-                if (Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(queryDelUsuarioPatente, sqlParams) > 0)
+                if (SqlHelpers.GetInstance(_connString).ExecuteQuery(queryDelUsuarioPatente, sqlParams) > 0)
                 {
                     result = true;
                     DVV dvv = new DVV()

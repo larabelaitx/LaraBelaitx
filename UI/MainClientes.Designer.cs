@@ -186,6 +186,7 @@
             this.dgvClientes.RowTemplate.Height = 24;
             this.dgvClientes.Size = new System.Drawing.Size(1006, 240);
             this.dgvClientes.TabIndex = 18;
+            this.dgvClientes.CellContentClick += new System.Windows.Forms.DataGridViewCellEventHandler(this.dgvClientes_CellContentClick_1);
             // 
             // Nombre
             // 
@@ -242,6 +243,7 @@
             this.Controls.Add(this.panel1);
             this.Name = "MainClientes";
             this.Text = "Clientes";
+            this.Load += new System.EventHandler(this.MainClientes_Load);
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.dgvClientes)).EndInit();

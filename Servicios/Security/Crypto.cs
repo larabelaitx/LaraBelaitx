@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Servicios.Security
+namespace Services
 {
     public static class Crypto
     {

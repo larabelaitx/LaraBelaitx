@@ -45,6 +45,7 @@ namespace UI
             }
             catch (Exception ex)
             {
+                //ver despues bien el tema de los parámetros
                 KryptonMessageBox.Show(this, $"Error al cargar: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 DialogResult = DialogResult.Cancel;

@@ -197,5 +197,15 @@ namespace UI
                 ApplySearch();
             }
         }
+
+        private void MainClientes_Load(object sender, EventArgs e)
+        {
+
+        }
+
+        private void dgvClientes_CellContentClick_1(object sender, DataGridViewCellEventArgs e)
+        {
+
+        }
     }
 }
