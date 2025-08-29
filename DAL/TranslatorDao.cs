@@ -5,13 +5,14 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Services;
 
 namespace DAL
 {
     public class TranslatorDao
     {
         private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Services.Security.Crypto.Decript(Services.Helpers.FileHelper.GetInstance(configFilePath).ReadFile());
+        private static string _connString = Crypto.Decript(FileHelper.GetInstance(configFilePath).ReadFile());
         private static Dictionary<string, string> _translations = new Dictionary<string, string>();
 
         #region Singleton

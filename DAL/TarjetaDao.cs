@@ -5,14 +5,15 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Services;
 
 namespace DAL
 {
     public class TarjetaDao : Mappers.ICRUD<BE.Tarjeta>
     {
         private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Services.Security.Crypto.Decript(
-            Services.Helpers.FileHelper.GetInstance(configFilePath).ReadFile());
+        private static string _connString = Crypto.Decript(
+            FileHelper.GetInstance(configFilePath).ReadFile());
 
         private static TarjetaDao _instance;
         public static TarjetaDao GetInstance() => _instance ?? (_instance = new TarjetaDao());

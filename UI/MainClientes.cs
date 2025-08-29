@@ -16,25 +16,20 @@ namespace UI
         public MainClientes()
         {
             InitializeComponent();
-
-            // Instancia del servicio real 
             _clienteService = new ClienteService();
 
             ConfigureGrid();
-            ApplySearch(); // carga inicial (todos)
+            ApplySearch(); 
 
-            // Eventos de botones
             btnBuscar.Click += btnBuscar_Click;
             btnLimpiar.Click += btnLimpiar_Click;
             btnAgregar.Click += btnAgregar_Click;
             btnVolver.Click += btnVolver_Click;
 
-            // Enter en filtros -> Buscar
             txtNombre.KeyDown += Filtros_KeyDown_Enter_Buscar;
             txtApellido.KeyDown += Filtros_KeyDown_Enter_Buscar;
             txtDocumento.KeyDown += Filtros_KeyDown_Enter_Buscar;
 
-            // Eventos de grilla
             dgvClientes.CellContentClick += dgvClientes_CellContentClick;
             dgvClientes.DataBindingComplete += dgvClientes_DataBindingComplete;
         }
@@ -130,7 +125,7 @@ namespace UI
         private void btnLimpiar_Click(object sender, EventArgs e)
         {
             ClearFilters();
-            ApplySearch(); // recarga todo
+            ApplySearch();
         }
 
         private void ClearFilters()
@@ -143,7 +138,7 @@ namespace UI
 
         private void btnAgregar_Click(object sender, EventArgs e)
         {
-            using (var frm = new AltaCliente(_clienteService, modo: "ALTA", cliente: null))
+            using (var frm = new AltaCliente(_clienteService, AltaCliente.FormMode.Alta))
             {
                 if (frm.ShowDialog(this) == DialogResult.OK)
                     ApplySearch();
@@ -163,12 +158,22 @@ namespace UI
 
             if (col == "colVer")
             {
-                using (var frm = new AltaCliente(_clienteService, modo: "VER", cliente: cliente))
+                using (var frm = new AltaCliente(
+                    _clienteService,
+                    AltaCliente.FormMode.Consulta,   
+                    idCliente: cliente.IdCliente,            
+                    cliente: cliente))
+                {
                     frm.ShowDialog(this);
+                }
             }
             else if (col == "colEditar")
             {
-                using (var frm = new AltaCliente(_clienteService, modo: "MODIFICAR", cliente: cliente))
+                using (var frm = new AltaCliente(
+                    _clienteService,
+                    AltaCliente.FormMode.Edicion,    
+                    idCliente: cliente.IdCliente,
+                    cliente: cliente))
                 {
                     if (frm.ShowDialog(this) == DialogResult.OK)
                         ApplySearch();
@@ -187,7 +192,6 @@ namespace UI
             }
         }
 
-        // Enter en filtros
         private void Filtros_KeyDown_Enter_Buscar(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Enter)

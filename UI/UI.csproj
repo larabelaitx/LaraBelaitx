@@ -56,17 +56,29 @@
     <Compile Include="AltaCliente.Designer.cs">
       <DependentUpon>AltaCliente.cs</DependentUpon>
     </Compile>
+    <Compile Include="AltaCuenta.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="AltaCuenta.Designer.cs">
+      <DependentUpon>AltaCuenta.cs</DependentUpon>
+    </Compile>
     <Compile Include="MainClientes.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="MainClientes.Designer.cs">
       <DependentUpon>MainClientes.cs</DependentUpon>
     </Compile>
-    <Compile Include="Form1.cs">
+    <Compile Include="Login.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="Form1.Designer.cs">
-      <DependentUpon>Form1.cs</DependentUpon>
+    <Compile Include="Login.Designer.cs">
+      <DependentUpon>Login.cs</DependentUpon>
+    </Compile>
+    <Compile Include="MainCuentas.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MainCuentas.Designer.cs">
+      <DependentUpon>MainCuentas.cs</DependentUpon>
     </Compile>
     <Compile Include="Menu.cs">
       <SubType>Form</SubType>
@@ -79,11 +91,17 @@
     <EmbeddedResource Include="AltaCliente.resx">
       <DependentUpon>AltaCliente.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="AltaCuenta.resx">
+      <DependentUpon>AltaCuenta.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="MainClientes.resx">
       <DependentUpon>MainClientes.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="Form1.resx">
-      <DependentUpon>Form1.cs</DependentUpon>
+    <EmbeddedResource Include="Login.resx">
+      <DependentUpon>Login.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="MainCuentas.resx">
+      <DependentUpon>MainCuentas.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Menu.resx">
       <DependentUpon>Menu.cs</DependentUpon>

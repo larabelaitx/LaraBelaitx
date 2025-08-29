@@ -6,13 +6,15 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using DAL.Mappers;
+using Services;
+using BE;
 
 namespace DAL
 {
-    public class PatenteDao : ICRUD<BE.Permiso>
+    public class PatenteDao : ICRUD<Permiso>
     {
         private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Services.Security.Crypto.Decript(Services.Helpers.FileHelper.GetInstance(configFilePath).ReadFile());
+        private static string _connString = Crypto.Decript(FileHelper.GetInstance(configFilePath).ReadFile());
 
         private static PatenteDao _instance;
         //Singleton
@@ -131,7 +133,7 @@ namespace DAL
             return result;
         }
 
-        List<Permiso> ICrud<Permiso>.GetAll()
+        List<Permiso> ICRUD<Permiso>.GetAll()
         {
             throw new NotImplementedException();
         }

@@ -2,7 +2,8 @@
 using System.Windows.Forms;
 using Krypton.Toolkit;
 using BLL.Services;  
-using BE;             
+using BE;
+
 
 namespace UI
 {
@@ -43,15 +44,14 @@ namespace UI
 
                 AjustarUIxModo();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                //ver despues bien el tema de los parámetros
-                KryptonMessageBox.Show(this, $"Error al cargar: {ex.Message}", "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                KryptonMessageBox.Show(this, "Cliente creado con éxito.", "OK");
                 DialogResult = DialogResult.Cancel;
                 Close();
             }
         }
+
         private void CargarCombos()
         {
             // Estado Civil
@@ -188,23 +188,20 @@ namespace UI
                     var id = _service.Crear(nuevo); 
                     if (id > 0)
                     {
-                        KryptonMessageBox.Show(this, "Cliente creado con éxito.", "OK",
-                            MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        KryptonMessageBox.Show(this, "Cliente creado con éxito.");
                         DialogResult = DialogResult.OK;
                         Close();
                     }
                     else
                     {
-                        KryptonMessageBox.Show(this, "No se pudo crear el cliente.", "Aviso",
-                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        KryptonMessageBox.Show(this, "No se pudo crear el cliente.");
                     }
                 }
                 else if (Modo == FormMode.Edicion)
                 {
                     if (_cliente == null)
                     {
-                        KryptonMessageBox.Show(this, "No hay cliente cargado para modificar.", "Aviso",
-                            MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        KryptonMessageBox.Show(this, "No hay cliente cargado para modificar.");
                         return;
                     }
 
@@ -212,15 +209,13 @@ namespace UI
                     var ok = _service.Actualizar(_cliente);
                     if (ok)
                     {
-                        KryptonMessageBox.Show(this, "Cliente actualizado.", "OK",
-                            MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        KryptonMessageBox.Show(this, "Cliente actualizado.");
                         DialogResult = DialogResult.OK;
                         Close();
                     }
                     else
                     {
-                        KryptonMessageBox.Show(this, "No se pudo actualizar el cliente.", "Aviso",
-                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        KryptonMessageBox.Show(this, "No se pudo actualizar el cliente.");
                     }
                 }
                 else
@@ -231,8 +226,7 @@ namespace UI
             }
             catch (Exception ex)
             {
-                KryptonMessageBox.Show(this, $"Error al guardar: {ex.Message}", "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                KryptonMessageBox.Show(this, $"Error al guardar: {ex.Message}");
             }
         }
 

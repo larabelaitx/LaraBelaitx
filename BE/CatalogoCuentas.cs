@@ -15,7 +15,7 @@ namespace BE
 
         public static readonly string[] Monedas =
         {
-            "ARS", "USD", "EUR"
+            "ARS"
         };
 
         public static readonly string[] EstadosCuenta =

@@ -1,4 +1,4 @@
-﻿// BLL/Services/ClienteService.cs
+﻿
 using System;
 using System.Collections.Generic;
 using BE;
@@ -14,11 +14,9 @@ namespace BLL.Services
 
         public List<Cliente> Buscar(string nombre, string apellido, string documento)
         {
-            // "nomApe" (Nombre + Apellido) y "documento"
             string nomApe = BuildNomApe(nombre, apellido);
             string doc = string.IsNullOrWhiteSpace(documento) ? null : documento.Trim();
 
-            // Pasamos NULL al resto de filtros que no se usan
             return _dao.Buscar(nomApe, doc, null, null, null);
         }
 

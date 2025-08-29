@@ -44,7 +44,9 @@
     <Compile Include="Bitacora.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Services\ClienteService.cs" />
+    <Compile Include="Services\CuentaService.cs" />
     <Compile Include="Services\IClienteService.cs" />
+    <Compile Include="Services\ICuentaService.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\BE\BE.csproj">

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Services;
 
 namespace BLL
 {
@@ -28,7 +29,7 @@ namespace BLL
             List<BE.Bitacora> bitacora = DAL.BitacoraDao.GetInstance().GetAllBitacora();
             foreach (BE.Bitacora registro in bitacora)
             {
-                registro.Descripcion = Services.Security.Crypto.Decript(registro.Descripcion);
+                registro.Descripcion = Crypto.Decript(registro.Descripcion);
             }
             return bitacora;
         }
@@ -36,7 +37,7 @@ namespace BLL
         {
             try
             {
-                registro.Descripcion = Services.Security.Crypto.Encript(registro.Descripcion);
+                registro.Descripcion = Crypto.Encript(registro.Descripcion);
                 BE.DVH dvh = new BE.DVH() { dvh = CalculateDVHBitacora(registro) };
                 return DAL.BitacoraDao.GetInstance().Add(registro, dvh);
             }
@@ -59,7 +60,7 @@ namespace BLL
                 sb.Append(bitacora.Descripcion);
                 sb.Append(bitacora.Fecha);
 
-                return Services.Security.DV.GetDV(sb.ToString());
+                return DV.GetDV(sb.ToString());
             }
             catch (NullReferenceException)
             {

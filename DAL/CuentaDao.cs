@@ -5,14 +5,15 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Services;
 
 namespace DAL.Mappers
 {
     public class CuentaDao : Mappers.ICRUD<BE.Cuenta>
     {
         private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Services.Security.Crypto.Decript(
-            Services.Helpers.FileHelper.GetInstance(configFilePath).ReadFile());
+        private static string _connString = Crypto.Decript(
+           FileHelper.GetInstance(configFilePath).ReadFile());
 
         private static CuentaDao _instance;
         public static CuentaDao GetInstance() => _instance ?? (_instance = new CuentaDao());
@@ -99,6 +100,42 @@ namespace DAL.Mappers
             var ps = new List<SqlParameter> { new SqlParameter("@Id", c.IdCuenta) };
             return Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(sql, ps) > 0;
         }
+
+        public List<BE.Cuenta> Buscar(string cliente = null, string tipo = null, string estado = null)
+        {
+            var sql = @" SELECT  c.IdCuenta, c.ClienteId, c.NumeroCuenta, c.CBU, c.Alias, 
+                    c.TipoCuenta, c.Moneda, c.Saldo, c.FechaApertura, c.Estado,
+                    (cl.Apellido + ', ' + cl.Nombre) AS ClienteNombre
+                    FROM    Cuenta c
+                    JOIN    Cliente cl ON cl.IdCliente = c.ClienteId
+                    WHERE   1=1";
+
+            var ps = new List<SqlParameter>();
+
+            if (!string.IsNullOrWhiteSpace(cliente))
+            {
+                sql += " AND (cl.Apellido + ', ' + cl.Nombre) LIKE @Cliente ";
+                ps.Add(new SqlParameter("@Cliente", "%" + cliente.Trim() + "%"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(tipo))
+            {
+                sql += " AND c.TipoCuenta = @Tipo ";
+                ps.Add(new SqlParameter("@Tipo", tipo.Trim()));
+            }
+
+            if (!string.IsNullOrWhiteSpace(estado))
+            {
+                sql += " AND c.Estado = @Estado ";
+                ps.Add(new SqlParameter("@Estado", estado.Trim()));
+            }
+
+            sql += " ORDER BY cl.Apellido, cl.Nombre;";
+
+            var dt = Services.SqlHelpers.GetInstance(_connString).GetDataTable(sql, ps);
+            return DAL.Mappers.MPCuenta.GetInstance().MapCuentas(dt);
+        }
+
 
         // ICRUD
         bool Mappers.ICRUD<BE.Cuenta>.Add(BE.Cuenta alta) => Add(alta) > 0;
