@@ -1,17 +1,23 @@
-﻿using System;
+﻿// Program.cs (ejemplo)
+using System;
 using System.Windows.Forms;
+using BLL;
 
-namespace UI
+
+static class Program
 {
-    internal static class Program
+    [STAThread]
+    static void Main()
     {
-        [STAThread]
-        static void Main()
-        {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new Login());
-        }
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+
+        // Servicios
+        var dvSvc = new DVService(); // o tu implementación real
+        var usrSvc = UsuarioService.CreateWithSingletons(dvSvc);
+        var rolSvc = RolService.CreateWithSingletons();
+
+        // UI
+        Application.Run(new UI.MainUsuarios(usrSvc, rolSvc));
     }
 }
-

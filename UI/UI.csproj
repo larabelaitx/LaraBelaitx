@@ -62,6 +62,12 @@
     <Compile Include="AltaCuenta.Designer.cs">
       <DependentUpon>AltaCuenta.cs</DependentUpon>
     </Compile>
+    <Compile Include="AltaUsuario.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="AltaUsuario.Designer.cs">
+      <DependentUpon>AltaUsuario.cs</DependentUpon>
+    </Compile>
     <Compile Include="MainClientes.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -80,6 +86,18 @@
     <Compile Include="MainCuentas.Designer.cs">
       <DependentUpon>MainCuentas.cs</DependentUpon>
     </Compile>
+    <Compile Include="MainURP.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MainURP.Designer.cs">
+      <DependentUpon>MainURP.cs</DependentUpon>
+    </Compile>
+    <Compile Include="MainUsuarios.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MainUsuarios.Designer.cs">
+      <DependentUpon>MainUsuarios.cs</DependentUpon>
+    </Compile>
     <Compile Include="Menu.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -94,6 +112,9 @@
     <EmbeddedResource Include="AltaCuenta.resx">
       <DependentUpon>AltaCuenta.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="AltaUsuario.resx">
+      <DependentUpon>AltaUsuario.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="MainClientes.resx">
       <DependentUpon>MainClientes.cs</DependentUpon>
     </EmbeddedResource>
@@ -102,6 +123,12 @@
     </EmbeddedResource>
     <EmbeddedResource Include="MainCuentas.resx">
       <DependentUpon>MainCuentas.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="MainURP.resx">
+      <DependentUpon>MainURP.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="MainUsuarios.resx">
+      <DependentUpon>MainUsuarios.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Menu.resx">
       <DependentUpon>Menu.cs</DependentUpon>

@@ -95,7 +95,7 @@ namespace UI
             // 
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.None;
             this.BackgroundImage = ((System.Drawing.Image)(resources.GetObject("$this.BackgroundImage")));
-            this.ClientSize = new System.Drawing.Size(818, 468);
+            this.ClientSize = new System.Drawing.Size(820, 486);
             this.Controls.Add(this.btnOlvideContraseña);
             this.Controls.Add(this.btnIngresar);
             this.Controls.Add(this.txtContraseña);
