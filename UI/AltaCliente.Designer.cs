@@ -346,7 +346,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1083, 443);
+            this.ClientSize = new System.Drawing.Size(1084, 436);
             this.Controls.Add(this.cboEsPep);
             this.Controls.Add(this.cboSituacionFiscal);
             this.Controls.Add(this.cboEstadoCivil);
@@ -379,6 +379,7 @@
             this.Controls.Add(this.panel1);
             this.Name = "AltaCliente";
             this.Text = ">";
+            this.TextExtra = "Clientes";
             this.Load += new System.EventHandler(this.AltaCliente_Load);
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();

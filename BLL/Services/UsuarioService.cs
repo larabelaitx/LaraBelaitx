@@ -1,5 +1,4 @@
-﻿// BLL/UsuarioService.cs
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Mail;
@@ -112,6 +111,22 @@ namespace BLL
                 return addr.Address == email.Trim();
             }
             catch { return false; }
+        }
+        public bool ExisteUsername(string username, int? excludeId)
+        {
+            if (string.IsNullOrWhiteSpace(username)) return false;
+
+            var usuario = _usuarioDao.GetByUserName(username.Trim());
+            return usuario != null && (!excludeId.HasValue || usuario.Id != excludeId.Value);
+        }
+
+        public bool ExisteEmail(string email, int? excludeId)
+        {
+            if (string.IsNullOrWhiteSpace(email)) return false;
+
+            var usuarios = _usuarioDao.GetAll();
+            return usuarios.Any(u => string.Equals(u.Email, email.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                                     (!excludeId.HasValue || u.Id != excludeId.Value));
         }
     }
 }

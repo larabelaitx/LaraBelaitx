@@ -26,9 +26,15 @@ namespace BE
         [DisplayName("Language")]
         public string IdiomaNombre { get => Language.Name; }
         [DisplayName("Enabled")]
-        public bool IsEnabled
-        {
-            get => Enabled.Id == 1;
-        }
+       // public bool IsEnabled
+       // {
+        //    get => Enabled.Id == 1;
+      //  }
+
+        public bool IsEnabled { get; }
+
+        public string Documento { get; set; }
+
+        public int RolId { get; set; } // Para asignar el rol en el alta/modificación   
     }
 }

@@ -13,5 +13,8 @@ namespace BLL
         void Reactivar(int idUsuario);   
         bool UsuarioTieneRolId(int idUsuario, int idRol);
         bool ExisteUserName(string userName);
+        bool ExisteUsername(string username, int? excludeId);
+        bool ExisteEmail(string email, int? excludeId);
+
     }
 }
