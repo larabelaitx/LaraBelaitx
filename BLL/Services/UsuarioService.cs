@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Mail;
 using BE;
 using BLL.Services;
 using DAL;
+using Services;
 
 namespace BLL
 {
@@ -13,7 +15,6 @@ namespace BLL
         private readonly UsuarioDao _usuarioDao;
         private readonly FamiliaDao _familiaDao;
         private readonly IDVService _dv;
-
         public UsuarioService(UsuarioDao usuarioDao, FamiliaDao familiaDao, IDVService dv)
         {
             _usuarioDao = usuarioDao;
@@ -28,13 +29,52 @@ namespace BLL
 
         public Usuario ObtenerPorId(int id) => _usuarioDao.GetById(id);
 
-        public void Crear(Usuario u)
+        public void Crear(Usuario usuario)
         {
-            ValidarUsuario(u, esAlta: true);
-            if (ExisteUserName(u.UserName)) throw new Exception("El nombre de usuario ya existe.");
+            ValidarUsuario(usuario, esAlta: true);
 
-            var dvh = _dv.CalcularDVHUsuario(u);
-            if (!_usuarioDao.Add(u, dvh)) throw new Exception("No se pudo crear el usuario.");
+            if (ExisteUserName(usuario.UserName))
+                throw new Exception("El nombre de usuario ya existe.");
+
+            string contraseñaTemporal = GenerarContraseñaTemporal();
+            usuario.Password = Crypto.EncriptMD5(contraseñaTemporal);
+            usuario.DebeCambiarContraseña = true;
+            usuario.Tries = 0;
+            usuario.Enabled = new Estado { Id = 1, Name = "Habilitado" };
+
+            var dvh = _dv.CalcularDVHUsuario(usuario);
+            if (!_usuarioDao.Add(usuario, dvh))
+                throw new Exception("No se pudo crear el usuario.");
+
+            EnviarCredencialesPorEmail(usuario.Email, usuario.UserName, contraseñaTemporal);
+
+            var dvv = new DVV { tabla = "Usuario", dvv = DVVDao.GetInstance().CalculateDVV("Usuario") };
+            DVVDao.GetInstance().AddUpdateDVV(dvv);
+        }
+
+        private string GenerarContraseñaTemporal()
+        {
+            const string caracteres = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            var random = new Random();
+            return new string(Enumerable.Repeat(caracteres, 10)
+                .Select(s => s[random.Next(s.Length)]).ToArray());
+        }
+
+        private void EnviarCredencialesPorEmail(string email, string usuario, string contraseña)
+        {
+            string contenido = $@"USUARIO: {usuario}
+                                CONTRASEÑA TEMPORAL: {contraseña}
+
+                                INSTRUCCIONES:
+                                1. Ingrese al sistema con estas credenciales
+                                2. Debe cambiar su contraseña inmediatamente
+                                3. Elija una contraseña segura";
+
+            string directorio = Path.Combine(Environment.CurrentDirectory, "Credenciales");
+            Directory.CreateDirectory(directorio);
+
+            string archivo = Path.Combine(directorio, $"{usuario}_credenciales.txt");
+            File.WriteAllText(archivo, contenido);
         }
 
         public void Actualizar(Usuario u)
@@ -51,6 +91,9 @@ namespace BLL
 
             var dvh = _dv.CalcularDVHUsuario(u);
             if (!_usuarioDao.Update(u, dvh)) throw new Exception("No se pudo actualizar el usuario.");
+
+            var dvv = new DVV { tabla = "Usuario", dvv = DVVDao.GetInstance().CalculateDVV("Usuario") };
+            DVVDao.GetInstance().AddUpdateDVV(dvv);
         }
 
         public void DarDeBaja(int idUsuario)
@@ -61,9 +104,10 @@ namespace BLL
             u.Enabled = new Estado { Id = 3, Name = "Baja" };
 
             var dvh = _dv.CalcularDVHUsuario(u);
-      
             if (!_usuarioDao.Update(u, dvh)) throw new Exception("No se pudo dar de baja al usuario.");
 
+            var dvv = new DVV { tabla = "Usuario", dvv = DVVDao.GetInstance().CalculateDVV("Usuario") };
+            DVVDao.GetInstance().AddUpdateDVV(dvv);
         }
 
         public void Reactivar(int idUsuario)
@@ -75,6 +119,9 @@ namespace BLL
 
             var dvh = _dv.CalcularDVHUsuario(u);
             if (!_usuarioDao.Update(u, dvh)) throw new Exception("No se pudo reactivar al usuario.");
+
+            var dvv = new DVV { tabla = "Usuario", dvv = DVVDao.GetInstance().CalculateDVV("Usuario") };
+            DVVDao.GetInstance().AddUpdateDVV(dvv);
         }
 
         public bool UsuarioTieneRolId(int idUsuario, int idRol)
@@ -88,6 +135,7 @@ namespace BLL
             if (string.IsNullOrWhiteSpace(userName)) return false;
             return _usuarioDao.GetByUserName(userName.Trim()) != null;
         }
+
         private void ValidarUsuario(Usuario u, bool esAlta)
         {
             if (u == null) throw new Exception("Objeto usuario nulo.");
@@ -112,6 +160,7 @@ namespace BLL
             }
             catch { return false; }
         }
+
         public bool ExisteUsername(string username, int? excludeId)
         {
             if (string.IsNullOrWhiteSpace(username)) return false;

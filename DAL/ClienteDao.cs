@@ -12,6 +12,7 @@ namespace DAL.Mappers
         private static string _connString = Crypto.Decript(
             FileHelper.GetInstance(configFilePath).ReadFile());
 
+        //Singleton
         private static ClienteDao _instance;
         public static ClienteDao GetInstance() => _instance ?? (_instance = new ClienteDao());
         private ClienteDao() { }

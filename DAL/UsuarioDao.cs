@@ -2,439 +2,306 @@
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using BE;
 using DAL.Mappers;
 using Services;
 
-
 namespace DAL
 {
-    public class UsuarioDao : ICRUD<BE.Usuario>
+    public class UsuarioDao : ICRUD<Usuario>
     {
-
-        private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Crypto.Decript(FileHelper.GetInstance(configFilePath).ReadFile());
+        private static string configFilePath =
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
+        private static string _connString =
+            Crypto.Decript(FileHelper.GetInstance(configFilePath).ReadFile());
 
         #region Singleton
         private static UsuarioDao _instance;
         public static UsuarioDao GetInstance()
         {
-            if (_instance == null)
-            {
-                _instance = new UsuarioDao();
-            }
-
+            if (_instance == null) _instance = new UsuarioDao();
             return _instance;
         }
         #endregion
 
+        // helper para DBNull
+        private static object DbOrNull<T>(T? value) where T : struct
+            => value.HasValue ? (object)value.Value : DBNull.Value;
+
+        private static object DbOrNull(string value)
+            => string.IsNullOrWhiteSpace(value) ? (object)DBNull.Value : value;
+
         #region CRUD USUARIO
-        public BE.Usuario GetById(int idUsuario)
+        public Usuario GetById(int idUsuario)
         {
-            string SelectId = "SELECT IdUsuario, IdIdioma, IdEstado, Nombre, Usuario, Apellido, Mail, Password, NroIntentos FROM Usuario WHERE IdUsuario = @idUsuario";
-            List<SqlParameter> parameter = new List<SqlParameter>();
-            parameter.Add(new SqlParameter("@idUsuario", idUsuario));
+            string query = @"
+                SELECT IdUsuario, IdIdioma, IdEstado, Nombre, Usuario, Apellido,
+                       Mail, PasswordHash, PasswordSalt, PasswordIterations,
+                       NroIntentos, Documento, DebeCambiarContraseña, DVH
+                FROM Usuario
+                WHERE IdUsuario = @idUsuario";
 
-            return Mappers.MPUsuario.GetInstance().MapUser(SqlHelpers.GetInstance(_connString).GetDataTable(SelectId, parameter));
+            List<SqlParameter> param = new List<SqlParameter>
+            {
+                new SqlParameter("@idUsuario", idUsuario)
+            };
+
+            return MPUsuario.GetInstance()
+                .MapUser(SqlHelpers.GetInstance(_connString).GetDataTable(query, param));
         }
-        public BE.Usuario GetByUserName(string username)
+
+        public Usuario GetByUserName(string username)
         {
-            string SelectId = "SELECT IdUsuario, IdIdioma, IdEstado, Nombre, Usuario, Apellido, Mail, Password, NroIntentos FROM Usuario WHERE Usuario = @user";
-            List<SqlParameter> parameter = new List<SqlParameter>();
-            parameter.Add(new SqlParameter("@user", username));
+            string query = @"
+                SELECT IdUsuario, IdIdioma, IdEstado, Nombre, Usuario, Apellido,
+                       Mail, PasswordHash, PasswordSalt, PasswordIterations,
+                       NroIntentos, Documento, DebeCambiarContraseña, DVH
+                FROM Usuario
+                WHERE Usuario = @user";
 
-            return Mappers.MPUsuario.GetInstance().MapUser(SqlHelpers.GetInstance(_connString).GetDataTable(SelectId, parameter));
+            List<SqlParameter> param = new List<SqlParameter>
+            {
+                new SqlParameter("@user", username)
+            };
+
+            return MPUsuario.GetInstance()
+                .MapUser(SqlHelpers.GetInstance(_connString).GetDataTable(query, param));
         }
-        public bool Add(Usuario usuario, DVH dvh)
-        {
-            bool returnValue = false;
-            string queryInsert = "INSERT INTO Usuario (IdEstado, IdIdioma, Usuario, Password, Nombre, Apellido, Mail, NroIntentos, DVH) VALUES (@idEstado, @IdIdioma, @Usuario, @Password, @Nombre, @Apellido, @Mail, @NroIntentos, @DVH)";
-            string checkPrev = "SELECT COUNT(*) FROM Usuario WHERE Usuario = @username OR Mail= @email";
-            try
-            {
-                if ((int)SqlHelpers.GetInstance(_connString).ExecuteScalar(checkPrev, new List<SqlParameter> { new SqlParameter("@username", usuario.UserName), new SqlParameter("@email", usuario.Email) }) > 0)
-                {
-                    throw new Exception(message: "Email o Usuario ya registrado");
-                }
-                if (usuario != null)
-                {
 
-                    List<SqlParameter> sqlParams = new List<SqlParameter>();
-                    sqlParams.Add(new SqlParameter("@idEstado", usuario.Enabled.Id));
-                    sqlParams.Add(new SqlParameter("@IdIdioma", usuario.Language.Id));
-                    sqlParams.Add(new SqlParameter("@Usuario", usuario.UserName));
-                    sqlParams.Add(new SqlParameter("@Password", usuario.Password));
-                    sqlParams.Add(new SqlParameter("@Nombre", usuario.Name));
-                    sqlParams.Add(new SqlParameter("@Apellido", usuario.LastName));
-                    sqlParams.Add(new SqlParameter("@Mail", usuario.Email));
-                    sqlParams.Add(new SqlParameter("@NroIntentos", usuario.Tries));
-                    sqlParams.Add(new SqlParameter("@DVH", dvh.dvh));
-                    if (SqlHelpers.GetInstance(_connString).ExecuteQuery(queryInsert, sqlParams) > 0)
-                    {
-                        returnValue = true;
-                        DVV dvv = new DVV()
-                        {
-                            tabla = "Usuario",
-                            dvv = DVVDao.GetInstance().CalculateDVV("Usuario"),
-                        };
-                        DVVDao.GetInstance().AddUpdateDVV(dvv);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-
-                throw e;
-            }
-            return returnValue;
-        }
-        public bool Delete(Usuario usuario, BE.DVH dvh)
-        {
-            bool result = false;
-            string delUsuario = "UPDATE Usuario SET IdEstado = 3, DVH =  @dvh WHERE IdUsuario = @idUsuario";
-            List<SqlParameter> sqlParams = new List<SqlParameter>() { new SqlParameter("@idUsuario", usuario.Id), new SqlParameter("@dvh", dvh.dvh) };
-
-            try
-            {
-                HashSet<Permiso> patentesUsuario = PatenteDao.GetInstance().GetPatentesUsuario(usuario.Id);
-
-                foreach (BE.Permiso patente in patentesUsuario)
-                {
-                    if (!PatenteDao.GetInstance().CheckPatenteAsing(patente.Id))
-                    {
-                        throw new Exception(message: string.Format("No se puede eliminar el Usuario, ya que quedaría la patente {0} sin asignar", patente.Name));
-                    }
-                }
-
-                if (SqlHelpers.GetInstance(_connString).ExecuteQuery(delUsuario, sqlParams) > 0)
-                {
-                    result = true;
-                    DVV dvv = new DVV()
-                    {
-                        tabla = "Usuario",
-                        dvv = DVVDao.GetInstance().CalculateDVV("Usuario"),
-                    };
-                    DVVDao.GetInstance().AddUpdateDVV(dvv);
-                }
-            }
-            catch (Exception e)
-            {
-
-                throw e;
-            }
-
-            return result;
-        }
         public List<Usuario> GetAll()
         {
-            string selectAll = "SELECT idUsuario, IdEstado, IdIdioma, Usuario, Password, Nombre, Apellido, Mail, NroIntentos FROM Usuario";
-            return Mappers.MPUsuario.GetInstance().Map(SqlHelpers.GetInstance(_connString).GetDataTable(selectAll));
+            string query = @"
+                SELECT IdUsuario, IdIdioma, IdEstado, Nombre, Usuario, Apellido,
+                       Mail, PasswordHash, PasswordSalt, PasswordIterations,
+                       NroIntentos, Documento, DebeCambiarContraseña, DVH
+                FROM Usuario";
+
+            return MPUsuario.GetInstance()
+                .Map(SqlHelpers.GetInstance(_connString).GetDataTable(query));
         }
+
         public List<Usuario> GetAllActive()
         {
-            string selectAll = "SELECT idUsuario, IdEstado, IdIdioma, Usuario, Password, Nombre, Apellido, Mail, NroIntentos FROM Usuario WHERE IdEstado != 3";
-            return Mappers.MPUsuario.GetInstance().Map(SqlHelpers.GetInstance(_connString).GetDataTable(selectAll));
+            string query = @"
+                SELECT IdUsuario, IdIdioma, IdEstado, Nombre, Usuario, Apellido,
+                       Mail, PasswordHash, PasswordSalt, PasswordIterations,
+                       NroIntentos, Documento, DebeCambiarContraseña, DVH
+                FROM Usuario
+                WHERE IdEstado <> 3";
+
+            return MPUsuario.GetInstance()
+                .Map(SqlHelpers.GetInstance(_connString).GetDataTable(query));
         }
-        public bool Update(Usuario usuario, BE.DVH dvh)
+
+        public bool Add(Usuario usuario, DVH dvh)
         {
-            bool returnValue = false;
-            string queryUpdate = "Update Usuario SET Usuario = @Usuario, Nombre = @Nombre, Password = @Password, Apellido = @Apellido, Mail = @Mail, IdEstado = @IdEstado, NroIntentos = @NroIntentos, IdIdioma = @IdIdioma, DVH = @DVH FROM Usuario WHERE IdUsuario = @IdUsuario";
+            const string checkPrev =
+                "SELECT COUNT(*) FROM Usuario WHERE Usuario = @username OR Mail = @mail";
+
+            const string insert = @"
+                INSERT INTO Usuario
+                    (IdEstado, IdIdioma, Usuario, PasswordHash, PasswordSalt, PasswordIterations,
+                     Nombre, Apellido, Mail, NroIntentos, Documento, DebeCambiarContraseña, DVH)
+                VALUES
+                    (@IdEstado, @IdIdioma, @Usuario, @PasswordHash, @PasswordSalt, @PasswordIterations,
+                     @Nombre, @Apellido, @Mail, @NroIntentos, @Documento, @DebeCambiar, @DVH)";
+
             try
             {
-                if (usuario != null)
-                {
-                    List<SqlParameter> sqlParams = new List<SqlParameter>();
-                    sqlParams.Add(new SqlParameter("@IdUsuario", usuario.Id));
-                    sqlParams.Add(new SqlParameter("@IdEstado", usuario.Enabled.Id));
-                    sqlParams.Add(new SqlParameter("@IdIdioma", usuario.Language.Id));
-                    sqlParams.Add(new SqlParameter("@Usuario", usuario.UserName));
-                    sqlParams.Add(new SqlParameter("@Password", usuario.Password));
-                    sqlParams.Add(new SqlParameter("@Nombre", usuario.Name));
-                    sqlParams.Add(new SqlParameter("@Apellido", usuario.LastName));
-                    sqlParams.Add(new SqlParameter("@Mail", usuario.Email));
-                    sqlParams.Add(new SqlParameter("@NroIntentos", usuario.Tries));
-                    sqlParams.Add(new SqlParameter("@DVH", dvh.dvh));
-                    if (SqlHelpers.GetInstance(_connString).ExecuteQuery(queryUpdate, sqlParams) > 0)
+                object exists = SqlHelpers.GetInstance(_connString).ExecuteScalar(
+                    checkPrev,
+                    new List<SqlParameter>
                     {
-                        returnValue = true;
-                        DVV dvv = new DVV()
-                        {
-                            tabla = "Usuario",
-                            dvv = DVVDao.GetInstance().CalculateDVV("Usuario"),
-                        };
-                        DVVDao.GetInstance().AddUpdateDVV(dvv);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
+                        new SqlParameter("@username", usuario.UserName),
+                        new SqlParameter("@mail", usuario.Email)
+                    });
 
-                throw e;
-            }
+                if (Convert.ToInt32(exists) > 0)
+                    throw new Exception("Usuario o Mail ya existente.");
 
-            return returnValue;
-        }
-
-        #endregion
-
-        public bool Login(string user, string password)
-        {
-            bool result = false;
-            string selectQuery = "SELECT COUNT(*) FROM Usuario WHERE Usuario = @user AND Password = @password";
-            try
-            {
-                List<SqlParameter> sqlParams = new List<SqlParameter>()
+                List<SqlParameter> sqlParams = new List<SqlParameter>
                 {
-                    new SqlParameter("@user", user),
-                    new SqlParameter("@password", password)
+                    new SqlParameter("@IdEstado", usuario.EstadoUsuarioId),
+                    new SqlParameter("@IdIdioma", DbOrNull(usuario.IdiomaId)),
+                    new SqlParameter("@Usuario", usuario.UserName),
+                    new SqlParameter("@PasswordHash", DbOrNull(usuario.PasswordHash)),
+                    new SqlParameter("@PasswordSalt", DbOrNull(usuario.PasswordSalt)),
+                    new SqlParameter("@PasswordIterations", usuario.PasswordIterations),
+                    new SqlParameter("@Nombre", DbOrNull(usuario.Name)),
+                    new SqlParameter("@Apellido", DbOrNull(usuario.LastName)),
+                    new SqlParameter("@Mail", DbOrNull(usuario.Email)),
+                    new SqlParameter("@NroIntentos", usuario.Tries),
+                    new SqlParameter("@Documento", DbOrNull(usuario.Documento)),
+                    new SqlParameter("@DebeCambiar", usuario.DebeCambiarContraseña),
+                    new SqlParameter("@DVH", dvh.dvh ?? (object)DBNull.Value)
                 };
-                if ((int)SqlHelpers.GetInstance(_connString).ExecuteScalar(selectQuery, sqlParams) > 0)
+
+                int rows = SqlHelpers.GetInstance(_connString).ExecuteQuery(insert, sqlParams);
+                if (rows > 0)
                 {
-                    result = true;
+                    DVVDao.GetInstance().AddUpdateDVV(
+                        new DVV { tabla = "Usuario", dvv = DVVDao.GetInstance().CalculateDVV("Usuario") });
+                    return true;
                 }
+                return false;
             }
-            catch (Exception ex)
+            catch
             {
-
-                throw ex;
+                throw;
             }
-
-            return result;
         }
 
-        #region UsuarioFamilia
-        public bool AddUsuarioFamilia(Usuario usuario, Familia familia, DVH dvh)
+        public bool Update(Usuario usuario, DVH dvh)
         {
-            bool result = false;
+            const string query = @"
+                UPDATE Usuario
+                SET Usuario = @Usuario,
+                    Nombre = @Nombre,
+                    Apellido = @Apellido,
+                    Mail = @Mail,
+                    PasswordHash = @PasswordHash,
+                    PasswordSalt = @PasswordSalt,
+                    PasswordIterations = @PasswordIterations,
+                    IdEstado = @IdEstado,
+                    IdIdioma = @IdIdioma,
+                    NroIntentos = @NroIntentos,
+                    Documento = @Documento,
+                    DebeCambiarContraseña = @DebeCambiar,
+                    DVH = @DVH
+                WHERE IdUsuario = @IdUsuario";
+
             try
             {
-                string queryCheckExistence = @"SELECT COUNT(*) FROM UsuarioFamilia as US WHERE IdFamilia = @idFamilia AND IdUsuario = @IdUsuario";
-                string insertQuery = "INSERT INTO UsuarioFamilia (IdUsuario, IdFamilia, DVH) VALUES (@idUsuario, @idFamilia, @dvh)";
-                string queryUpdate = "UPDATE UsuarioFamilia SET DVH = @dvh WHERE IdFamilia = @idFamilia AND IdUsuario = @idUsuario";
-                List<SqlParameter> sqlParams = new List<SqlParameter>()
+                List<SqlParameter> sqlParams = new List<SqlParameter>
                 {
-                    new SqlParameter("@idUsuario", usuario.Id),
-                    new SqlParameter("@idFamilia", familia.Id),
-                    new SqlParameter("@dvh", dvh.dvh)
+                    new SqlParameter("@IdUsuario", usuario.Id),
+                    new SqlParameter("@Usuario", usuario.UserName),
+                    new SqlParameter("@Nombre", DbOrNull(usuario.Name)),
+                    new SqlParameter("@Apellido", DbOrNull(usuario.LastName)),
+                    new SqlParameter("@Mail", DbOrNull(usuario.Email)),
+                    new SqlParameter("@PasswordHash", DbOrNull(usuario.PasswordHash)),
+                    new SqlParameter("@PasswordSalt", DbOrNull(usuario.PasswordSalt)),
+                    new SqlParameter("@PasswordIterations", usuario.PasswordIterations),
+                    new SqlParameter("@IdEstado", usuario.EstadoUsuarioId),
+                    new SqlParameter("@IdIdioma", DbOrNull(usuario.IdiomaId)),
+                    new SqlParameter("@NroIntentos", usuario.Tries),
+                    new SqlParameter("@Documento", DbOrNull(usuario.Documento)),
+                    new SqlParameter("@DebeCambiar", usuario.DebeCambiarContraseña),
+                    new SqlParameter("@DVH", dvh.dvh ?? (object)DBNull.Value)
                 };
-                int count = (int)SqlHelpers.GetInstance(_connString).ExecuteScalar(queryCheckExistence, new List<SqlParameter> { new SqlParameter("@idFamilia", familia.Id), new SqlParameter("@idUsuario", usuario.Id) });
-                if (count > 0)
-                {
-                    if (SqlHelpers.GetInstance(_connString).ExecuteQuery(queryUpdate, sqlParams) > 0)
-                    {
-                        result = true;
-                        DVV dvv = new DVV()
-                        {
-                            tabla = "UsuarioFamilia",
-                            dvv = DVVDao.GetInstance().CalculateDVV("UsuarioFamilia"),
-                        };
-                        DVVDao.GetInstance().AddUpdateDVV(dvv);
-                    }
-                }
-                else
-                {
 
-                    if (SqlHelpers.GetInstance(_connString).ExecuteQuery(insertQuery, sqlParams) > 0)
-                    {
-                        result = true;
-                        DVV dvv = new DVV()
-                        {
-                            tabla = "UsuarioFamilia",
-                            dvv = DVVDao.GetInstance().CalculateDVV("UsuarioFamilia"),
-                        };
-                        DVVDao.GetInstance().AddUpdateDVV(dvv);
-                    }
+                int rows = SqlHelpers.GetInstance(_connString).ExecuteQuery(query, sqlParams);
+                if (rows > 0)
+                {
+                    DVVDao.GetInstance().AddUpdateDVV(
+                        new DVV { tabla = "Usuario", dvv = DVVDao.GetInstance().CalculateDVV("Usuario") });
+                    return true;
                 }
+                return false;
             }
-            catch (Exception e)
+            catch
             {
-
-                throw e;
+                throw;
             }
-
-
-            return result;
         }
-        public bool DeleteUsuarioFamilia(int idFamilia)
+
+        public bool Delete(Usuario usuario, DVH dvh)
         {
-            bool result = false;
-            string queryDelUsuarioFamilia = "DELETE FROM UsuarioFamilia WHERE IdFamilia = @IdFamilia";
-            List<SqlParameter> sqlParams = new List<SqlParameter>
-            {
-                new SqlParameter("@IdFamilia", idFamilia)
-            };
+            const string query =
+                "UPDATE Usuario SET IdEstado = 3, DVH = @DVH WHERE IdUsuario = @IdUsuario";
+
             try
             {
-                if (SqlHelpers.GetInstance(_connString).ExecuteQuery(queryDelUsuarioFamilia, sqlParams) > 0)
+                // Patentes huérfanas
+                HashSet<Permiso> patentes =
+                    PatenteDao.GetInstance().GetPatentesUsuario(usuario.Id);
+                foreach (Permiso p in patentes)
                 {
-                    result = true;
-                    DVV dvv = new DVV()
-                    {
-                        tabla = "UsuarioFamilia",
-                        dvv = DVVDao.GetInstance().CalculateDVV("UsuarioFamilia"),
-                    };
-                    DVVDao.GetInstance().AddUpdateDVV(dvv);
+                    if (!PatenteDao.GetInstance().CheckPatenteAsing(p.Id))
+                        throw new Exception(
+                            string.Format("No se puede eliminar. Patente {0} quedaría sin asignar.", p.Name));
                 }
-            }
-            catch (Exception e)
-            {
 
-                throw e;
-            }
-
-            return result;
-        }
-        public bool DeleteUsuarioFamilia(int idUsuario, int idFamilia)
-        {
-            bool result = false;
-            string queryDelUsuarioFamilia = "DELETE FROM UsuarioFamilia WHERE IdFamilia = @IdFamilia AND IdUsuario = @IdUsuario";
-            List<SqlParameter> sqlParams = new List<SqlParameter>
-            {
-                new SqlParameter("@IdFamilia", idFamilia),
-                new SqlParameter("@IdUsuario", idUsuario)
-            };
-            try
-            {
-                HashSet<Permiso> patentesFamilia = PatenteDao.GetInstance().GetPatentesFamilia(idFamilia);
-
-                foreach (BE.Permiso patente in patentesFamilia)
+                List<SqlParameter> sqlParams = new List<SqlParameter>
                 {
-                    if (!PatenteDao.GetInstance().CheckPatenteAsing(patente.Id))
-                    {
-                        throw new Exception(message: string.Format("No se puede eliminar el Usuario de la Familia, ya que quedaría la patente {0} sin asignar", patente.Name));
-                    }
-                }
-                if (SqlHelpers.GetInstance(_connString).ExecuteQuery(queryDelUsuarioFamilia, sqlParams) > 0)
-                {
-                    result = true;
-                    DVV dvv = new DVV()
-                    {
-                        tabla = "UsuarioFamilia",
-                        dvv = DVVDao.GetInstance().CalculateDVV("UsuarioFamilia"),
-                    };
-                    DVVDao.GetInstance().AddUpdateDVV(dvv);
-                }
-            }
-            catch (Exception e)
-            {
-
-                throw e;
-            }
-            return result;
-        }
-        #endregion
-
-        #region UsuarioPatente
-        public bool AddUsuarioPatente(BE.Usuario usuario, BE.Permiso patente, BE.DVH dvh)
-        {
-            bool result = false;
-            try
-            {
-                string queryCheckExistence = "SELECT COUNT(*) FROM UsuarioPatente WHERE IdPatente = @idPatente AND IdUsuario = @IdUsuario";
-                string insertQuery = "INSERT INTO UsuarioPatente (IdUsuario, IdPatente, DVH) VALUES (@idUsuario, @idPatente, @dvh)";
-                string queryUpdate = "UPDATE UsuarioPatente SET DVH = @dvh WHERE IdPatente = @idPatente AND IdUsuario = @idUsuario";
-                List<SqlParameter> sqlParams = new List<SqlParameter>()
-                {
-                    new SqlParameter("@idUsuario", usuario.Id),
-                    new SqlParameter("@idPatente", patente.Id),
-                    new SqlParameter("@dvh", dvh.dvh)
+                    new SqlParameter("@IdUsuario", usuario.Id),
+                    new SqlParameter("@DVH", dvh.dvh ?? (object)DBNull.Value)
                 };
-                int count = (int)SqlHelpers.GetInstance(_connString).ExecuteScalar(queryCheckExistence, new List<SqlParameter> { new SqlParameter("@idPatente", patente.Id), new SqlParameter("@idUsuario", usuario.Id) });
-                if (count > 0)
+
+                int rows = SqlHelpers.GetInstance(_connString).ExecuteQuery(query, sqlParams);
+                if (rows > 0)
                 {
-                    if (SqlHelpers.GetInstance(_connString).ExecuteQuery(queryUpdate, sqlParams) > 0)
-                    {
-                        result = true;
-                        DVV dvv = new DVV()
-                        {
-                            tabla = "UsuarioPatente",
-                            dvv = DVVDao.GetInstance().CalculateDVV("UsuarioPatente"),
-                        };
-                        DVVDao.GetInstance().AddUpdateDVV(dvv);
-
-                    }
-
+                    DVVDao.GetInstance().AddUpdateDVV(
+                        new DVV { tabla = "Usuario", dvv = DVVDao.GetInstance().CalculateDVV("Usuario") });
+                    return true;
                 }
-                else
-                {
-                    if (SqlHelpers.GetInstance(_connString).ExecuteQuery(insertQuery, sqlParams) > 0)
-                    {
-                        result = true;
-                        DVV dvv = new DVV()
-                        {
-                            tabla = "UsuarioPatente",
-                            dvv = DVVDao.GetInstance().CalculateDVV("UsuarioPatente"),
-                        };
-                        DVVDao.GetInstance().AddUpdateDVV(dvv);
-
-                    }
-                }
-
-
+                return false;
             }
-            catch (Exception e)
+            catch
             {
-
-                throw e;
+                throw;
             }
-
-
-            return result;
         }
-        public bool DeleteUsuarioPatente(BE.Usuario usuario, BE.Permiso patente)
+        #endregion
+
+        #region LOGIN (con verificación PBKDF2)
+        public bool Login(string user, string plainPassword)
         {
-            bool result = false;
-            string queryDelUsuarioPatente = "DELETE FROM UsuarioPatente WHERE IdUsuario = @IdUsuario AND IdPatente = @IdPatente";
-            List<SqlParameter> sqlParams = new List<SqlParameter>
-            {
-                new SqlParameter("@IdUsuario", usuario.Id),
-                new SqlParameter("@IdPatente", patente.Id)
-            };
+            // Traigo hash/salt/iters del usuario habilitado
+            const string query = @"
+                SELECT PasswordHash, PasswordSalt, PasswordIterations
+                FROM Usuario
+                WHERE Usuario = @user AND IdEstado = 1";
+
             try
             {
-                if (!PatenteDao.GetInstance().CheckPatenteAsing(patente.Id))
+                List<SqlParameter> sqlParams = new List<SqlParameter>
                 {
-                    throw new Exception(message: "No se puede eliminar la Patente del Usuario, ya que quedaría sin asignar");
-                }
-                if (SqlHelpers.GetInstance(_connString).ExecuteQuery(queryDelUsuarioPatente, sqlParams) > 0)
-                {
-                    result = true;
-                    DVV dvv = new DVV()
-                    {
-                        tabla = "UsuarioPatente",
-                        dvv = DVVDao.GetInstance().CalculateDVV("UsuarioPatente"),
-                    };
-                    DVVDao.GetInstance().AddUpdateDVV(dvv);
-                }
+                    new SqlParameter("@user", user)
+                };
+
+                var dt = SqlHelpers.GetInstance(_connString).GetDataTable(query, sqlParams);
+                if (dt.Rows.Count == 0) return false;
+
+                string storedHash = Convert.ToString(dt.Rows[0]["PasswordHash"]);
+                string storedSalt = Convert.ToString(dt.Rows[0]["PasswordSalt"]);
+                int iterations = Convert.ToInt32(dt.Rows[0]["PasswordIterations"]);
+
+                return VerifyPassword(plainPassword, storedSalt, iterations, storedHash);
             }
-            catch (Exception e)
+            catch
             {
-
-                throw e;
+                throw;
             }
+        }
 
-            return result;
+        // PBKDF2 – compatible con C# 7.3
+        private static bool VerifyPassword(string plain, string base64Salt, int iterations, string base64Hash)
+        {
+            if (string.IsNullOrEmpty(base64Salt) || string.IsNullOrEmpty(base64Hash) || iterations <= 0)
+                return false;
+
+            byte[] salt = Convert.FromBase64String(base64Salt);
+            byte[] expected = Convert.FromBase64String(base64Hash);
+
+            using (var pbkdf2 = new Rfc2898DeriveBytes(plain, salt, iterations, HashAlgorithmName.SHA256))
+            {
+                byte[] computed = pbkdf2.GetBytes(expected.Length);
+                // tiempo constante
+                if (computed.Length != expected.Length) return false;
+                int diff = 0;
+                for (int i = 0; i < expected.Length; i++) diff |= computed[i] ^ expected[i];
+                return diff == 0;
+            }
         }
         #endregion
 
-
-        #region NOT IMPLEMENTED
-        public bool Add(Usuario alta)
-        {
-            throw new NotImplementedException();
-        }
-
-        public bool Update(Usuario update)
-        {
-            throw new NotImplementedException();
-        }
-
-        public bool Delete(Usuario alta)
-        {
-            throw new NotImplementedException();
-        }
-
+        #region NotImplemented
+        public bool Add(Usuario alta) { throw new NotImplementedException(); }
+        public bool Update(Usuario update) { throw new NotImplementedException(); }
+        public bool Delete(Usuario baja) { throw new NotImplementedException(); }
         #endregion
-
     }
 }
