@@ -1,17 +1,15 @@
 ﻿using System.Collections.Generic;
 using BE;
 
-namespace BLL.Services
+namespace BLL.Contracts
 {
     public interface IClienteService
     {
-        List<Cliente> ObtenerTodos();
-        List<Cliente> Buscar(string nombre, string apellido, string documento);
+        List<Cliente> Buscar(string nomApe = null, string doc = null, string estadoCivil = null, string situacionFiscal = null, bool? pep = null);
         Cliente GetById(int id);
-
+        List<Cliente> GetAll();
         int Crear(Cliente c);
         bool Actualizar(Cliente c);
         bool Eliminar(Cliente c);
-      //OJO CON EL REACTIVARRRRR
     }
 }

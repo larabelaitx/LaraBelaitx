@@ -235,7 +235,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1086, 458);
+            this.ClientSize = new System.Drawing.Size(1088, 451);
             this.Controls.Add(this.txtCliente);
             this.Controls.Add(this.btnGuardar);
             this.Controls.Add(this.txtObs);
@@ -256,6 +256,7 @@
             this.Controls.Add(this.panel1);
             this.Name = "AltaCuenta";
             this.Text = "AltaCuenta";
+            this.Load += new System.EventHandler(this.AltaCuenta_Load);
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.cboTipo)).EndInit();

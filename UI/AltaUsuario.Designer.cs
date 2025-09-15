@@ -216,7 +216,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1088, 340);
+            this.ClientSize = new System.Drawing.Size(1090, 333);
             this.Controls.Add(this.btnGuardar);
             this.Controls.Add(this.cboEstado);
             this.Controls.Add(this.label8);
@@ -235,6 +235,7 @@
             this.Controls.Add(this.panel1);
             this.Name = "AltaUsuario";
             this.Text = "AltaUsuario";
+            this.Load += new System.EventHandler(this.AltaUsuario_Load);
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.cboRol)).EndInit();

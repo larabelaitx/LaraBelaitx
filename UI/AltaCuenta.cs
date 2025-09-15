@@ -3,6 +3,7 @@ using System.Windows.Forms;
 using BLL.Services;
 using BE;
 using Krypton.Toolkit;
+using BLL.Contracts; 
 
 namespace UI
 {
@@ -156,6 +157,11 @@ namespace UI
             {
                 MessageBox.Show(this, "Error al guardar: " + ex.Message, "Error");
             }
+        }
+
+        private void AltaCuenta_Load(object sender, EventArgs e)
+        {
+
         }
     }
 }

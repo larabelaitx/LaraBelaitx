@@ -35,8 +35,6 @@ namespace UI
 
             ConfigurarGrid();
         }
-
-        // Dentro de la clase MainUsuarios
         private void AbrirAltaUsuario(ModoForm modo, int? idUsuario)
         {
             using (var frm = new AltaUsuario(modo, idUsuario, _svcUsuarios, _svcRoles))
@@ -45,9 +43,6 @@ namespace UI
                     Refrescar();
             }
         }
-
-       
-
         private void MainUsuarios_Load(object sender, EventArgs e)
         {
             CargarCombos();
@@ -56,7 +51,6 @@ namespace UI
 
         private void CargarCombos()
         {
-            // Estado: null = Todos (UI decide mostrar Activo/Inactivo a partir de IsEnabled)
             var estados = new List<ItemComboEstado>();
             estados.Add(new ItemComboEstado { Texto = "Todos", Valor = null });
             estados.Add(new ItemComboEstado { Texto = "Activo", Valor = true });
@@ -66,7 +60,6 @@ namespace UI
             cboEstado.ValueMember = nameof(ItemComboEstado.Valor);
             cboEstado.DataSource = estados;
 
-            // Roles desde BLL (devolvé Familias/Roles con Id/Name)
             var roles = _svcRoles.ListarRoles()
                                  .OrderBy(r => r.Name)
                                  .Select(r => new ItemComboRol { Id = r.Id, Nombre = r.Name })
@@ -95,7 +88,6 @@ namespace UI
 
         private void Refrescar()
         {
-            // BE.Usuario -> VM (solo los campos que mostrás en el DGV)
             var modelo = _svcUsuarios.Listar().Select(u => new UsuarioVM
             {
                 Id = u.Id,
@@ -147,7 +139,6 @@ namespace UI
                 q = q.Where(x => string.Equals(x.Estado, fActivo.Value ? "Activo" : "Inactivo", StringComparison.OrdinalIgnoreCase));
 
             if (fRolId.HasValue)
-                // La BLL resuelve si el usuario tiene ese Rol (Familia) dentro del Composite
                 q = q.Where(x => _svcUsuarios.UsuarioTieneRolId(x.Id, fRolId.Value));
 
             return q;
@@ -166,8 +157,8 @@ namespace UI
             txtNombre.Clear();
             txtApellido.Clear();
             txtMail.Clear();
-            cboEstado.SelectedIndex = 0; // Todos
-            cboRol.SelectedIndex = 0;    // Todos
+            cboEstado.SelectedIndex = 0; 
+            cboRol.SelectedIndex = 0;   
             Refrescar();
         }
 
@@ -206,8 +197,6 @@ namespace UI
                     break;
             }
         }
-        
-
         private void DescargarCsv()
         {
             if (_view == null || _view.Count == 0)
@@ -238,8 +227,6 @@ namespace UI
             KryptonMessageBox.Show("Archivo exportado correctamente.", "Éxito");
         }
     }
-
-
     public class UsuarioVM
     {
         public int Id { get; set; }
@@ -254,9 +241,8 @@ namespace UI
     public class ItemComboEstado
     {
         public string Texto { get; set; }
-        public bool? Valor { get; set; } // null=Todos, true=Activo, false=Inactivo
+        public bool? Valor { get; set; } 
     }
-
     public class ItemComboRol
     {
         public int? Id { get; set; }

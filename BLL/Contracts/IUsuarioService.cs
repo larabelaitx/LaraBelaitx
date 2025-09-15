@@ -1,20 +1,24 @@
 ﻿using System.Collections.Generic;
 using BE;
 
-namespace BLL
+namespace BLL.Contracts
 {
     public interface IUsuarioService
     {
-        IEnumerable<Usuario> Listar();
+        Usuario GetById(int id);
+        Usuario GetByUserName(string user);
+        List<Usuario> GetAll();
+        bool CrearConPassword(Usuario u, string plainPassword);
+        bool Crear(Usuario u);
+        bool Actualizar(Usuario u);
+        bool BajaLogica(Usuario u);
+
+        bool Login(string userName, string plainPassword, out Usuario usuario);
+        void DesbloquearUsuario(int idUsuario);
         Usuario ObtenerPorId(int id);
-        void Crear(Usuario usuario);
-        void Actualizar(Usuario usuario);
-        void DarDeBaja(int idUsuario);  
-        void Reactivar(int idUsuario);   
-        bool UsuarioTieneRolId(int idUsuario, int idRol);
-        bool ExisteUserName(string userName);
-        bool ExisteUsername(string username, int? excludeId);
-        bool ExisteEmail(string email, int? excludeId);
+        bool ExisteUsername(string username);
+        bool ExisteEmail(string email);
+        List<Cliente> ObtenerTodos();
 
     }
 }

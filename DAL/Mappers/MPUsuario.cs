@@ -2,9 +2,6 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using DAL; 
 
 namespace DAL.Mappers
 {
@@ -12,122 +9,116 @@ namespace DAL.Mappers
     {
         #region Singleton
         private static MPUsuario _instance;
-
         public static MPUsuario GetInstance()
         {
-            if (_instance == null)
-            {
-                _instance = new MPUsuario();
-            }
+            if (_instance == null) _instance = new MPUsuario();
             return _instance;
         }
+        private MPUsuario() { }
         #endregion
 
         public BE.Usuario MapUser(DataTable dt)
         {
-            try
+            if (dt == null || dt.Rows.Count == 0) return null;
+            var r = dt.Rows[0];
+
+            var u = new BE.Usuario
             {
-                BE.Usuario usuario = new BE.Usuario()
-                {
-                    Id = dt.Rows[0].Field<int>("IdUsuario"),
-                    Name = dt.Rows[0].Field<string>("Nombre"),
-                    LastName = dt.Rows[0].Field<string>("Apellido"),
-                    Email = dt.Rows[0].Field<string>("Mail"),
-                    UserName = dt.Rows[0].Field<string>("Usuario"),
-                    Password = dt.Rows[0].Field<string>("Password"),
-                    Tries = dt.Rows[0].Field<int>("NroIntentos"),
-                    Permisos = new List<BE.Permiso>(), // <-- antes: new List<Permiso>()
-                    Language = IdiomaDao.GetInstance().GetById(dt.Rows[0].Field<int>("IdIdioma")),
-                    Enabled = EstadoDao.GetInstance().GetById(dt.Rows[0].Field<int>("IdEstado"))
-                };
+                Id = Get<int>(r, "IdUsuario"),
+                Name = Get<string>(r, "Nombre"),
+                LastName = Get<string>(r, "Apellido"),
+                Email = Get<string>(r, "Mail"),
+                UserName = Get<string>(r, "Usuario"),
+                PasswordHash = Get<string>(r, "PasswordHash"),
+                PasswordSalt = Get<string>(r, "PasswordSalt"),
+                PasswordIterations = Get<int>(r, "PasswordIterations", 0),
+                Tries = Get<int>(r, "NroIntentos", 0),
+                Documento = Get<string>(r, "Documento"),
+                EstadoUsuarioId = Get<int>(r, "IdEstado"),
+                IdiomaId = Get<int?>(r, "IdIdioma"),
+                IdiomaNombre = "—",
+                Permisos = new List<BE.Permiso>()
+            };
 
-                HashSet<BE.Permiso> permisosUsuario = new HashSet<BE.Permiso>();
-                List<BE.Familia> familiasUsuario = new List<BE.Familia>();
-
-                permisosUsuario = PatenteDao.GetInstance().GetPatentesUsuario(usuario.Id);
-                familiasUsuario = FamiliaDao.GetInstance().GetFamiliasUsuario(usuario.Id);
-
-                if (familiasUsuario.Count() >= 1)
-                {
-                    foreach (BE.Familia familia in familiasUsuario) // <-- antes: Familia
-                    {
-                        foreach (BE.Permiso permiso in familia.Patentes) // <-- antes: Permiso
-                        {
-                            if (!permisosUsuario.Any(x => x.Id == permiso.Id))
-                                permisosUsuario.Add(permiso);
-                        }
-                    }
-                }
-                if (permisosUsuario.Count() >= 1)
-                {
-                    foreach (BE.Permiso permiso in permisosUsuario) // <-- antes: Permiso
-                    {
-                        usuario.Permisos.Add(permiso);
-                    }
-                }
-
-                return usuario;
-            }
-            catch (Exception e)
+            if (u.IdiomaId.HasValue)
             {
-                throw e; // lo dejo igual 
+                var idioma = DAL.IdiomaDao.GetInstance().GetById(u.IdiomaId.Value);
+                u.IdiomaNombre = idioma?.Name ?? "—";
             }
+
+            u.Language = u.IdiomaId.HasValue ? new BE.Idioma { Id = u.IdiomaId.Value, Name = u.IdiomaNombre } : null;
+            u.Enabled = new BE.Estado { Id = u.EstadoUsuarioId, Name = u.EstadoDisplay };
+
+            var permisosUsuario = DAL.PatenteDao.GetInstance().GetPatentesUsuario(u.Id);
+            var familiasUsuario = DAL.FamiliaDao.GetInstance().GetFamiliasUsuario(u.Id);
+
+            foreach (var fam in familiasUsuario)
+                foreach (var perm in fam.Patentes)
+                    if (!permisosUsuario.Any(p => p.Id == perm.Id))
+                        permisosUsuario.Add(perm);
+
+            foreach (var p in permisosUsuario) u.Permisos.Add(p);
+
+            return u;
         }
 
         public List<BE.Usuario> Map(DataTable dt)
         {
-            try
+            var list = new List<BE.Usuario>();
+            if (dt == null || dt.Rows.Count == 0) return list;
+
+            foreach (DataRow r in dt.Rows)
             {
-                List<BE.Usuario> usuarios = new List<BE.Usuario>();
-                foreach (DataRow dr in dt.Rows)
+                var u = new BE.Usuario
                 {
-                    BE.Usuario usuario = new BE.Usuario()
-                    {
-                        Id = dr.Field<int>("IdUsuario"),
-                        Name = dr.Field<string>("Nombre"),
-                        UserName = dr.Field<string>("Usuario"),
-                        LastName = dr.Field<string>("Apellido"),
-                        Email = dr.Field<string>("Mail"),
-                        Password = dr.Field<string>("Password"),
-                        Permisos = new List<BE.Permiso>(), // <-- antes: new List<Permiso>()
-                        Tries = dr.Field<int>("NroIntentos"),
-                        Language = IdiomaDao.GetInstance().GetById(dr.Field<int>("IdIdioma")),
-                        Enabled = EstadoDao.GetInstance().GetById(dr.Field<int>("IdEstado"))
-                    };
+                    Id = Get<int>(r, "IdUsuario"),
+                    Name = Get<string>(r, "Nombre"),
+                    LastName = Get<string>(r, "Apellido"),
+                    Email = Get<string>(r, "Mail"),
+                    UserName = Get<string>(r, "Usuario"),
+                    PasswordHash = Get<string>(r, "PasswordHash"),
+                    PasswordSalt = Get<string>(r, "PasswordSalt"),
+                    PasswordIterations = Get<int>(r, "PasswordIterations", 0),
+                    Tries = Get<int>(r, "NroIntentos", 0),
+                    Documento = Get<string>(r, "Documento"),
+                    EstadoUsuarioId = Get<int>(r, "IdEstado"),
+                    IdiomaId = Get<int?>(r, "IdIdioma"),
+                    IdiomaNombre = "—",
+                    Permisos = new List<BE.Permiso>()
+                };
 
-                    HashSet<BE.Permiso> permisosUsuario = new HashSet<BE.Permiso>();
-                    List<BE.Familia> familiasUsuario = new List<BE.Familia>();
-
-                    permisosUsuario = PatenteDao.GetInstance().GetPatentesUsuario(usuario.Id);
-                    familiasUsuario = FamiliaDao.GetInstance().GetFamiliasUsuario(usuario.Id);
-
-                    if (familiasUsuario.Count() >= 1)
-                    {
-                        foreach (BE.Familia familia in familiasUsuario) // <-- antes: Familia
-                        {
-                            foreach (BE.Permiso permiso in familia.Patentes) // <-- antes: Permiso
-                            {
-                                if (!permisosUsuario.Any(x => x.Id == permiso.Id))
-                                    permisosUsuario.Add(permiso);
-                            }
-                        }
-                    }
-                    if (permisosUsuario.Count() >= 1)
-                    {
-                        foreach (BE.Permiso permiso in permisosUsuario) // <-- antes: Permiso
-                        {
-                            usuario.Permisos.Add(permiso);
-                        }
-                    }
-                    usuarios.Add(usuario);
+                if (u.IdiomaId.HasValue)
+                {
+                    var idioma = DAL.IdiomaDao.GetInstance().GetById(u.IdiomaId.Value);
+                    u.IdiomaNombre = idioma?.Name ?? "—";
                 }
 
-                return usuarios;
+                // Compatibilidad con [Obsolete]
+                u.Language = u.IdiomaId.HasValue ? new BE.Idioma { Id = u.IdiomaId.Value, Name = u.IdiomaNombre } : null;
+                u.Enabled = new BE.Estado { Id = u.EstadoUsuarioId, Name = u.EstadoDisplay };
+
+                var permisosUsuario = DAL.PatenteDao.GetInstance().GetPatentesUsuario(u.Id);
+                var familiasUsuario = DAL.FamiliaDao.GetInstance().GetFamiliasUsuario(u.Id);
+
+                foreach (var fam in familiasUsuario)
+                    foreach (var perm in fam.Patentes)
+                        if (!permisosUsuario.Any(p => p.Id == perm.Id))
+                            permisosUsuario.Add(perm);
+
+                foreach (var p in permisosUsuario) u.Permisos.Add(p);
+
+                list.Add(u);
             }
-            catch (Exception e)
-            {
-                throw e; // lo dejo igual
-            }
+
+            return list;
+        }
+
+        // Helpers null-safe
+        private static bool Has(DataRow r, string c) => r.Table.Columns.Contains(c);
+        private static T Get<T>(DataRow r, string c, T def = default)
+        {
+            if (!Has(r, c) || r[c] == DBNull.Value) return def;
+            return (T)Convert.ChangeType(r[c], typeof(T));
         }
     }
 }

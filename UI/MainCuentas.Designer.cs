@@ -140,7 +140,6 @@
             this.cboTipo.Size = new System.Drawing.Size(267, 26);
             this.cboTipo.StateCommon.ComboBox.Content.TextH = Krypton.Toolkit.PaletteRelativeAlign.Near;
             this.cboTipo.TabIndex = 15;
-          //  this.cboTipo.SelectedIndexChanged += new System.EventHandler(this.kryptonComboBox2_SelectedIndexChanged);
             // 
             // btnBuscar
             // 
@@ -188,6 +187,7 @@
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.dgvCuentas.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.Fill;
+            this.dgvCuentas.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.dgvCuentas.ColumnHeadersHeight = 36;
             this.dgvCuentas.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
             this.NumeroCuenta,
@@ -207,7 +207,6 @@
             this.dgvCuentas.RowTemplate.Height = 24;
             this.dgvCuentas.Size = new System.Drawing.Size(1051, 276);
             this.dgvCuentas.TabIndex = 21;
-            //this.dgvCuentas.CellContentClick += new System.Windows.Forms.DataGridViewCellEventHandler(this.kryptonDataGridView1_CellContentClick);
             // 
             // NumeroCuenta
             // 
@@ -283,7 +282,7 @@
             this.Controls.Add(this.panel1);
             this.Name = "MainCuentas";
             this.Text = "MainCuentas";
-        //    this.Load += new System.EventHandler(this.MainCuentas_Load);
+            this.Load += new System.EventHandler(this.MainCuentas_Load);
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.cboEstado)).EndInit();

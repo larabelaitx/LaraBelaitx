@@ -1,181 +1,120 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net.Mail;
 using BE;
-using BLL.Services;
 using DAL;
-using Services;
+using BLL.Contracts;
+using Svc = global::Services;
 
-namespace BLL
+namespace BLL.Services
 {
     public class UsuarioService : IUsuarioService
     {
-        private readonly UsuarioDao _usuarioDao;
-        private readonly FamiliaDao _familiaDao;
-        private readonly IDVService _dv;
-        public UsuarioService(UsuarioDao usuarioDao, FamiliaDao familiaDao, IDVService dv)
+        private readonly UsuarioDao _dao = UsuarioDao.GetInstance();
+        private readonly BitacoraDao _bitacora = BitacoraDao.GetInstance();
+
+        public int MaxTries { get; set; } = 3;
+        public Usuario GetById(int id) => _dao.GetById(id);
+        public Usuario GetByUserName(string user) => _dao.GetByUserName(user);
+        public List<Usuario> GetAll() => _dao.GetAllActive();
+        public bool CrearConPassword(Usuario u, string plainPassword)
         {
-            _usuarioDao = usuarioDao;
-            _familiaDao = familiaDao;
-            _dv = dv;
+            (string hash, string salt, int iters) = Svc.PasswordService.Hash(plainPassword);
+            u.PasswordHash = hash;
+            u.PasswordSalt = salt;
+            u.PasswordIterations = iters;
+            return Crear(u);
         }
 
-        public static UsuarioService CreateWithSingletons(IDVService dv)
-            => new UsuarioService(UsuarioDao.GetInstance(), FamiliaDao.GetInstance(), dv);
-
-        public IEnumerable<Usuario> Listar() => _usuarioDao.GetAll();
-
-        public Usuario ObtenerPorId(int id) => _usuarioDao.GetById(id);
-
-        public void Crear(Usuario usuario)
+        public bool Crear(Usuario u)
         {
-            ValidarUsuario(usuario, esAlta: true);
-
-            if (ExisteUserName(usuario.UserName))
-                throw new Exception("El nombre de usuario ya existe.");
-
-            string contraseñaTemporal = GenerarContraseñaTemporal();
-            usuario.Password = Crypto.EncriptMD5(contraseñaTemporal);
-            usuario.DebeCambiarContraseña = true;
-            usuario.Tries = 0;
-            usuario.Enabled = new Estado { Id = 1, Name = "Habilitado" };
-
-            var dvh = _dv.CalcularDVHUsuario(usuario);
-            if (!_usuarioDao.Add(usuario, dvh))
-                throw new Exception("No se pudo crear el usuario.");
-
-            EnviarCredencialesPorEmail(usuario.Email, usuario.UserName, contraseñaTemporal);
-
-            var dvv = new DVV { tabla = "Usuario", dvv = DVVDao.GetInstance().CalculateDVV("Usuario") };
-            DVVDao.GetInstance().AddUpdateDVV(dvv);
+            var dvh = new DVH { dvh = Svc.DV.GetDV(DvhString(u)) };
+            return _dao.Add(u, dvh);
         }
 
-        private string GenerarContraseñaTemporal()
+        public bool Actualizar(Usuario u)
         {
-            const string caracteres = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-            var random = new Random();
-            return new string(Enumerable.Repeat(caracteres, 10)
-                .Select(s => s[random.Next(s.Length)]).ToArray());
+            var dvh = new DVH { dvh = Svc.DV.GetDV(DvhString(u)) };
+            return _dao.Update(u, dvh);
         }
 
-        private void EnviarCredencialesPorEmail(string email, string usuario, string contraseña)
+        public bool BajaLogica(Usuario u)
         {
-            string contenido = $@"USUARIO: {usuario}
-                                CONTRASEÑA TEMPORAL: {contraseña}
-
-                                INSTRUCCIONES:
-                                1. Ingrese al sistema con estas credenciales
-                                2. Debe cambiar su contraseña inmediatamente
-                                3. Elija una contraseña segura";
-
-            string directorio = Path.Combine(Environment.CurrentDirectory, "Credenciales");
-            Directory.CreateDirectory(directorio);
-
-            string archivo = Path.Combine(directorio, $"{usuario}_credenciales.txt");
-            File.WriteAllText(archivo, contenido);
+            var dvh = new DVH { dvh = Svc.DV.GetDV(DvhString(u)) };
+            return _dao.Delete(u, dvh);
         }
 
-        public void Actualizar(Usuario u)
+        private static string DvhString(Usuario u)
+            => $"{u.Id}|{u.UserName}|{u.Email}|{u.EstadoUsuarioId}|{u.Tries}";
+
+        // --- Autenticación / Seguridad ---
+        public bool Login(string userName, string plainPassword, out Usuario usuario)
         {
-            if (u == null || u.Id <= 0) throw new Exception("Usuario inválido.");
-            ValidarUsuario(u, esAlta: false);
-
-            var actual = _usuarioDao.GetById(u.Id);
-            if (actual == null) throw new Exception("Usuario inexistente.");
-
-            if (!string.Equals(actual.UserName, u.UserName, StringComparison.OrdinalIgnoreCase) &&
-                ExisteUserName(u.UserName))
-                throw new Exception("El nombre de usuario ya existe.");
-
-            var dvh = _dv.CalcularDVHUsuario(u);
-            if (!_usuarioDao.Update(u, dvh)) throw new Exception("No se pudo actualizar el usuario.");
-
-            var dvv = new DVV { tabla = "Usuario", dvv = DVVDao.GetInstance().CalculateDVV("Usuario") };
-            DVVDao.GetInstance().AddUpdateDVV(dvv);
-        }
-
-        public void DarDeBaja(int idUsuario)
-        {
-            var u = _usuarioDao.GetById(idUsuario);
-            if (u == null) throw new Exception("Usuario inexistente.");
-
-            u.Enabled = new Estado { Id = 3, Name = "Baja" };
-
-            var dvh = _dv.CalcularDVHUsuario(u);
-            if (!_usuarioDao.Update(u, dvh)) throw new Exception("No se pudo dar de baja al usuario.");
-
-            var dvv = new DVV { tabla = "Usuario", dvv = DVVDao.GetInstance().CalculateDVV("Usuario") };
-            DVVDao.GetInstance().AddUpdateDVV(dvv);
-        }
-
-        public void Reactivar(int idUsuario)
-        {
-            var u = _usuarioDao.GetById(idUsuario);
-            if (u == null) throw new Exception("Usuario inexistente.");
-
-            u.Enabled = new Estado { Id = 1, Name = "Habilitado" };
-
-            var dvh = _dv.CalcularDVHUsuario(u);
-            if (!_usuarioDao.Update(u, dvh)) throw new Exception("No se pudo reactivar al usuario.");
-
-            var dvv = new DVV { tabla = "Usuario", dvv = DVVDao.GetInstance().CalculateDVV("Usuario") };
-            DVVDao.GetInstance().AddUpdateDVV(dvv);
-        }
-
-        public bool UsuarioTieneRolId(int idUsuario, int idRol)
-        {
-            var familias = _familiaDao.GetFamiliasUsuario(idUsuario) ?? new List<Familia>();
-            return familias.Any(f => f.Id == idRol);
-        }
-
-        public bool ExisteUserName(string userName)
-        {
-            if (string.IsNullOrWhiteSpace(userName)) return false;
-            return _usuarioDao.GetByUserName(userName.Trim()) != null;
-        }
-
-        private void ValidarUsuario(Usuario u, bool esAlta)
-        {
-            if (u == null) throw new Exception("Objeto usuario nulo.");
-
-            if (string.IsNullOrWhiteSpace(u.Name))
-                throw new Exception("El nombre es obligatorio.");
-            if (string.IsNullOrWhiteSpace(u.LastName))
-                throw new Exception("El apellido es obligatorio.");
-            if (string.IsNullOrWhiteSpace(u.UserName))
-                throw new Exception("El usuario (login) es obligatorio.");
-            if (!EsEmailValido(u.Email))
-                throw new Exception("El email no es válido.");
-        }
-
-        private bool EsEmailValido(string email)
-        {
-            if (string.IsNullOrWhiteSpace(email)) return false;
-            try
+            usuario = _dao.GetByUserName(userName);
+            if (usuario == null)
             {
-                var addr = new MailAddress(email.Trim());
-                return addr.Address == email.Trim();
+                Log(1, null, $"Login fallido (usuario inexistente): {userName}");
+                return false;
             }
-            catch { return false; }
+
+            var ok = _dao.Login(userName, plainPassword);
+            if (!ok)
+            {
+                usuario.Tries = (usuario.Tries <= 0 ? 0 : usuario.Tries) + 1;
+                if (usuario.Tries >= MaxTries) usuario.EstadoUsuarioId = EstadosUsuario.Bloqueado;
+
+                var dvh = new DVH { dvh = Svc.DV.GetDV($"{usuario.Id}|{usuario.Tries}|{usuario.EstadoUsuarioId}") };
+                _dao.Update(usuario, dvh);
+
+                Log(2, usuario.Id, $"Intento de login fallido (tries={usuario.Tries})");
+                return false;
+            }
+
+            usuario.Tries = 0;
+            var dvhOk = new DVH { dvh = Svc.DV.GetDV($"{usuario.Id}|{usuario.Tries}|{usuario.EstadoUsuarioId}") };
+            _dao.Update(usuario, dvhOk);
+
+            Log(1, usuario.Id, "Login exitoso");
+            return true;
         }
 
-        public bool ExisteUsername(string username, int? excludeId)
+        public void DesbloquearUsuario(int idUsuario)
         {
-            if (string.IsNullOrWhiteSpace(username)) return false;
+            var u = _dao.GetById(idUsuario);
+            if (u == null) return;
 
-            var usuario = _usuarioDao.GetByUserName(username.Trim());
-            return usuario != null && (!excludeId.HasValue || usuario.Id != excludeId.Value);
+            u.EstadoUsuarioId = EstadosUsuario.Habilitado;
+            u.Tries = 0;
+            var dvh = new DVH { dvh = Svc.DV.GetDV($"{u.Id}|{u.Tries}|{u.EstadoUsuarioId}") };
+            _dao.Update(u, dvh);
+
+            Log(1, u.Id, "Usuario desbloqueado por administrador");
         }
 
-        public bool ExisteEmail(string email, int? excludeId)
+        private void Log(int criticidad, int? userId, string desc)
         {
-            if (string.IsNullOrWhiteSpace(email)) return false;
-
-            var usuarios = _usuarioDao.GetAll();
-            return usuarios.Any(u => string.Equals(u.Email, email.Trim(), StringComparison.OrdinalIgnoreCase) &&
-                                     (!excludeId.HasValue || u.Id != excludeId.Value));
+            _bitacora.Add(new BE.Bitacora
+            {
+                Criticidad = new BE.Criticidad(criticidad),
+                Usuario = userId.HasValue ? new BE.Usuario { Id = userId.Value } : null,
+                Descripcion = desc,
+                Fecha = DateTime.UtcNow
+            }, new DVH { dvh = Svc.DV.GetDV($"{criticidad}|{userId}|{desc}|{DateTime.UtcNow:O}") });
         }
+    
+        public Usuario ObtenerPorId(int id) => GetById(id);
+
+        public bool ExisteUsername(string username)
+        {
+            var u = _dao.GetByUserName(username);
+            return u != null;
+        }
+
+        public bool ExisteEmail(string email)
+        {
+            var all = _dao.GetAll();
+            return all.Exists(x => !string.IsNullOrWhiteSpace(x.Email) &&
+                                   x.Email.Trim().ToLower() == email?.Trim().ToLower());
+        }
+
     }
 }

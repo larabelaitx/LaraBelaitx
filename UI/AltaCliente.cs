@@ -3,6 +3,7 @@ using System.Windows.Forms;
 using Krypton.Toolkit;
 using BLL.Services;  
 using BE;
+using BLL.Contracts;  
 
 
 namespace UI

@@ -1,29 +1,31 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using BE;
 using DAL;
+using BLL.Contracts;
+using Svc = global::Services;
 
-namespace BLL
+namespace BLL.Services
 {
     public class RolService : IRolService
     {
-        private readonly FamiliaDao _familiaDao;
-
-        public RolService(FamiliaDao familiaDao)
+        private readonly FamiliaDao _familias = FamiliaDao.GetInstance();
+        private readonly PatenteDao _patentes = PatenteDao.GetInstance();
+        public List<Familia> GetFamilias() => _familias.GetAll();
+        public HashSet<Permiso> GetPatentes() => _patentes.GetAll();
+        public bool CrearFamilia(Familia f) => _familias.Add(f);
+        public bool ActualizarFamilia(Familia f) => _familias.Update(f);
+        public bool EliminarFamilia(Familia f) => _familias.Delete(f);
+        public bool AgregarPatenteAFamilia(Familia f, Permiso p)
         {
-            _familiaDao = familiaDao;
+            var dvh = new DVH { dvh = Svc.DV.GetDV($"{f.Id}|{p.Id}") };
+            return _familias.AddUpdatePatente(f, p, dvh);
         }
+        public bool QuitarPatenteAFamilia(Familia f, Permiso p)
+            => _familias.DelPatente(f, p);
+        public List<Familia> GetFamiliasUsuario(int idUsuario)
+            => _familias.GetFamiliasUsuario(idUsuario);
+        public List<Familia> ListarRoles() => GetFamilias();
 
-        public static RolService CreateWithSingletons()
-            => new RolService(FamiliaDao.GetInstance());
-        public IEnumerable<Permiso> ListarRoles()
-        {
-            return _familiaDao.GetAll().Cast<Permiso>();
-        }
-
-        public Permiso ObtenerPorId(int idRol)
-        {
-            return _familiaDao.GetById(idRol);
-        }
     }
+
 }

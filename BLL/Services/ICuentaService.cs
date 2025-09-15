@@ -1,32 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 using BE;
 
-namespace BLL.Services
+namespace BLL.Contracts
 {
     public interface ICuentaService
     {
-        // Lectura
+        Cuenta GetById(int id);
         List<Cuenta> GetAll();
         List<Cuenta> GetByCliente(int clienteId);
-        Cuenta GetById(int idCuenta);
-
-        // Escritura
         int Crear(Cuenta c);
         bool Actualizar(Cuenta c);
-        bool Eliminar(int idCuenta);
-
-        // Reglas
-        bool ExisteParaCliente(int clienteId);
-        bool ExisteNumero(string numeroCuenta);
-        bool ExisteCBU(string cbu);
-        bool ExisteAlias(string alias);
-
-        // Generadores
-        string GenerarNumeroCuenta();
+        bool Eliminar(Cuenta c);
+        List<Cuenta> Buscar(string cliente = null, string tipo = null, string estado = null);
+        string GenerarNumeroCuenta(int clienteId);
         string GenerarCBU();
         string GenerarAlias();
     }

@@ -5,6 +5,8 @@ using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Krypton.Toolkit;
 using BLL;
+using BE;
+using BLL.Contracts; 
 
 namespace UI
 {
@@ -257,7 +259,10 @@ namespace UI
             };
         }
 
- 
+        private void AltaUsuario_Load(object sender, EventArgs e)
+        {
+
+        }
     }
 
     public class RolDto

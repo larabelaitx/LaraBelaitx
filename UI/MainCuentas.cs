@@ -154,5 +154,10 @@ namespace UI
                 }
             }
         }
+
+        private void MainCuentas_Load(object sender, EventArgs e)
+        {
+
+        }
     }
 }

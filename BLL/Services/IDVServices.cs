@@ -1,14 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using BE;
-
-namespace BLL.Services
+﻿namespace BLL.Contracts
 {
-    public interface IDVService
+    public interface IDVServices
     {
-        DVH CalcularDVHUsuario(Usuario u);
+        string RecalcularDVV(string tabla);
+        string ObtenerDVV(string tabla);
+        bool VerificarTabla(string tabla, out string dvvCalculado, out string dvvGuardado);
     }
 }

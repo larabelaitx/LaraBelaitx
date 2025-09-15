@@ -303,5 +303,22 @@ namespace DAL
         public bool Update(Usuario update) { throw new NotImplementedException(); }
         public bool Delete(Usuario baja) { throw new NotImplementedException(); }
         #endregion
+    
+
+    public bool DeleteUsuarioFamilia(int idFamilia)
+        {
+            const string sql = "DELETE FROM UsuarioFamilia WHERE IdFamilia = @IdFamilia";
+            try
+            {
+                var ps = new List<System.Data.SqlClient.SqlParameter>
+        {
+            new System.Data.SqlClient.SqlParameter("@IdFamilia", idFamilia)
+        };
+                int rows = Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(sql, ps);
+
+                return rows > 0;
+            }
+            catch { throw; }
+        }
     }
 }

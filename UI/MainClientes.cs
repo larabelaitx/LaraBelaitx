@@ -4,7 +4,8 @@ using System.ComponentModel;
 using System.Linq;
 using System.Windows.Forms;
 using BLL.Services;   
-using BE;          
+using BE;
+using BLL.Contracts;
 
 namespace UI
 {
