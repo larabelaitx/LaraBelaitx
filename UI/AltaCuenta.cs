@@ -52,8 +52,7 @@ namespace UI
 
             txtCliente.Text = $"{_cliente.Apellido}, {_cliente.Nombre} (Doc: {_cliente.DocumentoIdentidad})";
 
-            // Autogenerados (no editables)
-            txtNumero.Text = _svc.GenerarNumeroCuenta();
+            txtNumero.Text = _svc.GenerarNumeroCuenta(_cliente.IdCliente); 
             txtCBU.Text = _svc.GenerarCBU();
             txtAlias.Text = _svc.GenerarAlias();
 
@@ -123,7 +122,7 @@ namespace UI
                         TipoCuenta = cboTipo.SelectedItem.ToString(),
                         Moneda = cboMoneda.SelectedItem.ToString(),
                         FechaApertura = dtpApertura.Value.Date,
-                        Estado = Estado.Abierta
+                        Estado = new BE.Estado { Id = 1, Name = "Abierta" }
                     };
 
                     var id = _svc.Crear(nueva);
@@ -160,6 +159,11 @@ namespace UI
         }
 
         private void AltaCuenta_Load(object sender, EventArgs e)
+        {
+
+        }
+
+        private void panel1_Paint(object sender, PaintEventArgs e)
         {
 
         }

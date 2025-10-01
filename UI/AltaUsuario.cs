@@ -40,23 +40,18 @@ namespace UI
         {
             base.OnLoad(e);
 
+            _ep = new ErrorProvider(this); 
             CargarCombos();
+            CablearEventos();
 
             if (_idUsuario.HasValue)
             {
-                var u = _svcUsuarios.ObtenerPorId(_idUsuario.Value);
+                var u = _svcUsuarios.GetById(_idUsuario.Value);  
                 if (u != null)
                     MapearBeAControles(u);
             }
 
-            if (_modo == ModoForm.Ver)
-            {
-                // deshabilitar campos/botón Guardar
-                btnGuardar.Enabled = false;
-                foreach (Control c in this.Controls)
-                    c.Enabled = false;
-                btnVolver.Enabled = true;
-            }
+            AplicarModo(_modo);
         }
 
         private void CargarCombos()
@@ -189,19 +184,28 @@ namespace UI
                 _ep.SetError(cboEstado, "Debe seleccionar el estado.");
                 ok = false;
             }
-
             if (ok)
             {
-                int? excludeId = _idUsuario;
-                if (_svcUsuarios.ExisteUsername(txtUsuario.Text.Trim(), excludeId))
+                var actual = _idUsuario.HasValue ? _svcUsuarios.GetById(_idUsuario.Value) : null;
+                string nuevoUser = txtUsuario.Text.Trim();
+                string nuevoMail = txtEmail.Text.Trim();
+
+                if (actual == null || !string.Equals(actual.UserName, nuevoUser, StringComparison.OrdinalIgnoreCase))
                 {
-                    _ep.SetError(txtUsuario, "El nombre de usuario ya existe.");
-                    ok = false;
+                    if (_svcUsuarios.ExisteUsername(nuevoUser))
+                    {
+                        _ep.SetError(txtUsuario, "El nombre de usuario ya existe.");
+                        ok = false;
+                    }
                 }
-                if (_svcUsuarios.ExisteEmail(txtEmail.Text.Trim(), excludeId))
+
+                if (actual == null || !string.Equals(actual.Email ?? "", nuevoMail, StringComparison.OrdinalIgnoreCase))
                 {
-                    _ep.SetError(txtEmail, "El email ya está registrado.");
-                    ok = false;
+                    if (_svcUsuarios.ExisteEmail(nuevoMail))
+                    {
+                        _ep.SetError(txtEmail, "El email ya está registrado.");
+                        ok = false;
+                    }
                 }
             }
 
@@ -232,34 +236,42 @@ namespace UI
 
         private void MapearBeAControles(BE.Usuario u)
         {
+            _usuarioExistente = u;
             txtNombre.Text = u.Name;
             txtApellido.Text = u.LastName;
             txtDocumento.Text = u.Documento;
             txtEmail.Text = u.Email;
             txtUsuario.Text = u.UserName;
 
-            if (cboRol.ValueMember == "Id") cboRol.SelectedValue = u.RolId;
+            if (cboRol.ValueMember == "Id")
+                cboRol.SelectedValue = u.RolId;
 
-            var estaActivo = u.Estado; 
-            cboEstado.SelectedItem = estaActivo ? "Activo" : "Inactivo";
+            cboEstado.SelectedItem = u.IsEnabled ? "Activo" : "Inactivo";
         }
 
         private BE.Usuario MapearControlesABe()
         {
             return new BE.Usuario
             {
-                Id = _idUsuario ?? 0, // si tu BE usa 0 como "sin id", ajustá
+                Id = _idUsuario ?? 0,
                 Name = txtNombre.Text.Trim(),
                 LastName = txtApellido.Text.Trim(),
                 Documento = txtDocumento.Text.Trim(),
                 Email = txtEmail.Text.Trim(),
                 UserName = txtUsuario.Text.Trim(),
                 RolId = (int)(cboRol.SelectedValue ?? 0),
-                Estado = (cboEstado.SelectedItem?.ToString() == "Activo")
+                EstadoUsuarioId = (cboEstado.SelectedItem?.ToString() == "Activo")
+                    ? BE.EstadosUsuario.Habilitado
+                    : BE.EstadosUsuario.Baja
             };
         }
 
         private void AltaUsuario_Load(object sender, EventArgs e)
+        {
+
+        }
+
+        private void label2_Click(object sender, EventArgs e)
         {
 
         }

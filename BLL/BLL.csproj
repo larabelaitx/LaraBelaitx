@@ -45,6 +45,7 @@
     <Compile Include="Contracts\IRolService.cs" />
     <Compile Include="Contracts\IUsuarioService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Services\BitacoraService.cs" />
     <Compile Include="Services\ClienteService.cs" />
     <Compile Include="Services\CuentaService.cs" />
     <Compile Include="Services\DVService.cs" />

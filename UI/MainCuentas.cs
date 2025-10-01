@@ -5,6 +5,8 @@ using System.Linq;
 using System.Windows.Forms;
 using BLL.Services;
 using BE;
+using BLL.Contracts;
+using Krypton.Toolkit;
 
 namespace UI
 {
@@ -77,12 +79,7 @@ namespace UI
             string tipo = (cboTipo.SelectedIndex <= 0) ? null : cboTipo.SelectedItem.ToString();
             string estado = (cboEstado.SelectedIndex <= 0) ? null : cboEstado.SelectedItem.ToString();
 
-            
-            var datos = _svc is CuentaService
-                ? (_svc as CuentaService).GetAll() 
-                : new List<Cuenta>();
-
-            datos = (_svc as ICuentaService).Buscar(cliente, tipo, estado);
+            var datos = _svc.Buscar(cliente, tipo, estado);
 
             var binding = datos.Select(x => new
             {
@@ -91,10 +88,10 @@ namespace UI
                 x.NumeroCuenta,
                 x.TipoCuenta,
                 x.Moneda,
-                EstadoTexto = x.Estado.ToString(),
+                EstadoTexto = x.Estado?.Name ?? "", 
                 ClienteNombre = (x.Cliente != null)
                     ? (x.Cliente.Apellido + ", " + x.Cliente.Nombre)
-                    : "" 
+                    : ""
             }).ToList();
 
             dgvCuentas.DataSource = binding;
@@ -105,15 +102,37 @@ namespace UI
 
         private void btnAgregar_Click(object sender, EventArgs e)
         {
-            using (var selector = new SelectorClientes(excluirConCuenta: true))
+            var clientes = new ClienteService().ObtenerTodos();
+
+            if (clientes == null || clientes.Count == 0)
             {
-                if (selector.ShowDialog(this) != DialogResult.OK) return;
-                var cliente = selector.ClienteSeleccionado; // BE.Cliente
-                using (var frm = new AltaCuenta(new CuentaService(), cliente))
-                {
-                    if (frm.ShowDialog(this) == DialogResult.OK)
-                        ApplySearch();
-                }
+                MessageBox.Show("No hay clientes para asociar.", "Aviso");
+                return;
+            }
+
+            var data = new KryptonInputBoxData
+            {
+                Caption = "Seleccionar Cliente",
+                Prompt = "Ingrese el Documento del cliente para vincular la cuenta:",
+                DefaultResponse = ""
+            };
+
+            string seleccion = KryptonInputBox.Show(data);
+
+            if (string.IsNullOrWhiteSpace(seleccion))
+                return;
+
+            var cliente = clientes.FirstOrDefault(c => (c.DocumentoIdentidad ?? "").Trim() == seleccion.Trim());
+            if (cliente == null)
+            {
+                MessageBox.Show("Cliente no encontrado.", "Aviso");
+                return;
+            }
+
+            using (var frm = new AltaCuenta(new CuentaService(), cliente))
+            {
+                if (frm.ShowDialog(this) == DialogResult.OK)
+                    ApplySearch();
             }
         }
 
@@ -148,7 +167,7 @@ namespace UI
             }
             else if (colName == "colReactivar")
             {
-                if (MessageBox.Show(this, "¿Confirmás reactivar la cuenta?", "Confirmar", MessageBoxButtons.YesNo) == DialogBoxButtons.Yes)
+                if (MessageBox.Show(this, "¿Confirmás reactivar la cuenta?", "Confirmar", MessageBoxButtons.YesNo) == DialogResult.Yes)
                 {
                     MessageBox.Show(this, "Implementá SetEstado/SetActiva según tu regla.", "Aviso");
                 }

@@ -79,6 +79,7 @@
             this.label2.Size = new System.Drawing.Size(183, 38);
             this.label2.TabIndex = 7;
             this.label2.Text = "ITX - Clientes";
+            this.label2.Click += new System.EventHandler(this.label2_Click);
             // 
             // label1
             // 
@@ -216,7 +217,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1090, 333);
+            this.ClientSize = new System.Drawing.Size(1092, 326);
             this.Controls.Add(this.btnGuardar);
             this.Controls.Add(this.cboEstado);
             this.Controls.Add(this.label8);

@@ -42,6 +42,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Bitacora.cs" />
+    <Compile Include="BitacoraEntry.cs" />
     <Compile Include="CatalogoCuentas.cs" />
     <Compile Include="CatalogosClientes.cs" />
     <Compile Include="CatalogoTarjeta.cs" />

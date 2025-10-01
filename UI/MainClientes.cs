@@ -109,13 +109,12 @@ namespace UI
             string apellido = (txtApellido.Text ?? "").Trim();
             string documento = (txtDocumento.Text ?? "").Trim();
 
-            bool hayFiltros = !string.IsNullOrEmpty(nombre)
-                           || !string.IsNullOrEmpty(apellido)
-                           || !string.IsNullOrEmpty(documento);
+            string nomApe = string.Join(" ", new[] { nombre, apellido }
+                                    .Where(s => !string.IsNullOrWhiteSpace(s))).Trim();
 
-            List<Cliente> datos = hayFiltros
-                ? _clienteService.Buscar(nombre, apellido, documento)
-                : _clienteService.ObtenerTodos();
+            List<Cliente> datos = !string.IsNullOrEmpty(nomApe) || !string.IsNullOrEmpty(documento)
+                ? _clienteService.Buscar(nomApe: nomApe, doc: documento)
+                : _clienteService.GetAll();  
 
             dgvClientes.DataSource = null;
             dgvClientes.DataSource = datos;

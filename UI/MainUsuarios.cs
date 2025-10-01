@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using BLL;
+using BLL.Contracts;
 using Krypton.Toolkit;
 
 
@@ -84,11 +85,19 @@ namespace UI
 
             dgvUsuarios.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells;
 
+            if (!dgvUsuarios.Columns.Contains("btnVer"))
+                dgvUsuarios.Columns.Add(new DataGridViewButtonColumn { Name = "btnVer", HeaderText = "Ver", Text = "Ver", UseColumnTextForButtonValue = true });
+            if (!dgvUsuarios.Columns.Contains("btnEditar"))
+                dgvUsuarios.Columns.Add(new DataGridViewButtonColumn { Name = "btnEditar", HeaderText = "Editar", Text = "Editar", UseColumnTextForButtonValue = true });
+            if (!dgvUsuarios.Columns.Contains("btnBaja"))
+                dgvUsuarios.Columns.Add(new DataGridViewButtonColumn { Name = "btnBaja", HeaderText = "Baja", Text = "Baja", UseColumnTextForButtonValue = true });
+            if (!dgvUsuarios.Columns.Contains("btnReactivar"))
+                dgvUsuarios.Columns.Add(new DataGridViewButtonColumn { Name = "btnReactivar", HeaderText = "Reactivar", Text = "Reactivar", UseColumnTextForButtonValue = true });
         }
 
         private void Refrescar()
         {
-            var modelo = _svcUsuarios.Listar().Select(u => new UsuarioVM
+            var modelo = _svcUsuarios.GetAll().Select(u => new UsuarioVM
             {
                 Id = u.Id,
                 Usuario = u.UserName,
@@ -96,7 +105,7 @@ namespace UI
                 Nombre = u.Name,
                 Mail = u.Email,
                 Rol = ExtraerRolPrincipal(u),
-                Estado = u.IsEnabled ? "Activo" : "Inactivo"
+                Estado = u.EstadoDisplay
             });
 
             var filtrado = AplicarFiltros(modelo);
@@ -125,7 +134,7 @@ namespace UI
             var fNombre = norm(txtNombre.Text);
             var fApellido = norm(txtApellido.Text);
             var fMail = norm(txtMail.Text);
-            bool? fActivo = (cboEstado.SelectedItem as ItemComboEstado)?.Valor;
+            bool? fActivo = (cboEstado.SelectedItem as ItemComboEstado)?.Valor; // true/false/null
             int? fRolId = (cboRol.SelectedItem as ItemComboRol)?.Id;
 
             var q = origen;
@@ -134,12 +143,19 @@ namespace UI
             if (!string.IsNullOrEmpty(fNombre)) q = q.Where(x => Match(x.Nombre, fNombre));
             if (!string.IsNullOrEmpty(fApellido)) q = q.Where(x => Match(x.Apellido, fApellido));
             if (!string.IsNullOrEmpty(fMail)) q = q.Where(x => Match(x.Mail, fMail));
-
             if (fActivo.HasValue)
-                q = q.Where(x => string.Equals(x.Estado, fActivo.Value ? "Activo" : "Inactivo", StringComparison.OrdinalIgnoreCase));
-
+            {
+                string esperado = fActivo.Value ? "Habilitado" : "Baja";
+                q = q.Where(x => string.Equals(x.Estado, esperado, StringComparison.OrdinalIgnoreCase));
+            }
             if (fRolId.HasValue)
-                q = q.Where(x => _svcUsuarios.UsuarioTieneRolId(x.Id, fRolId.Value));
+            {
+                q = q.Where(x =>
+                {
+                    var familias = _svcRoles.GetFamiliasUsuario(x.Id) ?? new List<BE.Familia>();
+                    return familias.Any(f => f.Id == fRolId.Value);
+                });
+            }
 
             return q;
         }
@@ -183,15 +199,19 @@ namespace UI
                 case "btnBaja":
                     if (KryptonMessageBox.Show("¿Dar de baja al usuario?", "Confirmar", KryptonMessageBoxButtons.YesNo) == DialogResult.Yes)
                     {
-                        _svcUsuarios.DarDeBaja(vm.Id);
-                        Refrescar();
+                        var u = _svcUsuarios.GetById(vm.Id);
+                        if (u != null)
+                        {
+                            _svcUsuarios.BajaLogica(u);
+                            Refrescar();
+                        }
                     }
                     break;
 
                 case "btnReactivar":
                     if (KryptonMessageBox.Show("¿Reactivar al usuario?", "Confirmar", KryptonMessageBoxButtons.YesNo) == DialogResult.Yes)
                     {
-                        _svcUsuarios.Reactivar(vm.Id);
+                        _svcUsuarios.DesbloquearUsuario(vm.Id);
                         Refrescar();
                     }
                     break;
@@ -225,6 +245,11 @@ namespace UI
             }
 
             KryptonMessageBox.Show("Archivo exportado correctamente.", "Éxito");
+        }
+
+        private void panel1_Paint(object sender, PaintEventArgs e)
+        {
+
         }
     }
     public class UsuarioVM
