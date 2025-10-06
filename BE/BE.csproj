@@ -57,6 +57,7 @@
     <Compile Include="Patente.cs" />
     <Compile Include="Permiso.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Sector.cs" />
     <Compile Include="Tarjeta.cs" />
     <Compile Include="Usuario.cs" />
   </ItemGroup>

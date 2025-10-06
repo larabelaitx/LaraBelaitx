@@ -17,7 +17,6 @@ namespace DAL.Mappers
             {
                 _instance = new MPFamilia();
             }
-
             return _instance;
         }
 
@@ -25,24 +24,21 @@ namespace DAL.Mappers
         {
             try
             {
-                BE.Familia familia = new BE.Familia()
+                var idFam = dt.Rows[0].Field<int>("IdFamilia");
+                return new BE.Familia
                 {
-                    Id = dt.Rows[0].Field<int>("IdFamilia"),
+                    Id = idFam,
                     Name = dt.Rows[0].Field<string>("Nombre"),
-                    Descripcion = dt.Rows[0].Field<string>("Descripcion"),
-                    Patentes = PatenteDao.GetInstance().GetPatentesFamilia(dt.Rows[0].Field<int>("IdFamilia"))
+                    Permisos = DAL.PatenteDao.GetInstance()
+                                .GetPatentesFamilia(idFam)
+                                .ToList<BE.Permiso>()
                 };
-
-                return familia;
-
             }
             catch (Exception e)
             {
-
                 throw e;
             }
         }
-
         public List<BE.Familia> MapFamilias(DataTable dt)
         {
             List<BE.Familia> familias = new List<BE.Familia>();
@@ -50,12 +46,14 @@ namespace DAL.Mappers
             {
                 foreach (DataRow dr in dt.Rows)
                 {
-                    familias.Add(new BE.Familia()
+                    var idFam = dr.Field<int>("IdFamilia");
+                    familias.Add(new BE.Familia
                     {
-                        Id = dr.Field<int>("IdFamilia"),
+                        Id = idFam,
                         Name = dr.Field<string>("Nombre"),
-                        Descripcion = dr.Field<string>("Descripcion"),
-                        Patentes = PatenteDao.GetInstance().GetPatentesFamilia(dr.Field<int>("IdFamilia"))
+                        Permisos = DAL.PatenteDao.GetInstance()
+                                     .GetPatentesFamilia(idFam)
+                                     .ToList<BE.Permiso>()
                     });
                 }
                 return familias;

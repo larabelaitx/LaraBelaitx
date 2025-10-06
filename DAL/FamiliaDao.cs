@@ -58,55 +58,51 @@ namespace DAL
         }
         public bool Delete(Familia familia)
         {
-            bool result = false;
-            string queryDelFamilia = "DELETE FROM Familia WHERE IdFamilia = @IdFamilia";
-            List<SqlParameter> sqlParams = new List<SqlParameter>
-            {
-                new SqlParameter("@IdFamilia", familia.Id)
-            };
+            const string sqlDelFamilia = "DELETE FROM Familia WHERE IdFamilia = @IdFamilia";
+            var sqlParams = new List<SqlParameter> { new SqlParameter("@IdFamilia", familia.Id) };
 
             try
             {
-                List<BE.Usuario> usuariosFamilias = GetUsuariosFamilias(familia.Id);
-                HashSet<BE.Permiso> patentesFamilias = PatenteDao.GetInstance().GetPatentesFamilia(familia.Id);
+                List<BE.Usuario> usuariosFamilia = GetUsuariosFamilias(familia.Id);
+                HashSet<BE.Permiso> patentesFamilia = PatenteDao.GetInstance().GetPatentesFamilia(familia.Id);
 
-                // Verifica si alguna patente de la familia quedaría sin asignar
-                foreach (BE.Permiso patente in patentesFamilias)
+                foreach (var patente in patentesFamilia)
                 {
                     if (!PatenteDao.GetInstance().CheckPatenteAsing(patente.Id))
+                        throw new Exception("No se puede eliminar la familia: quedaría patente sin asignar.");
+                }
+                if (usuariosFamilia.Count > 0)
+                {
+                    UsuarioDao.GetInstance().DeleteUsuarioFamilia(familia.Id);
+                    DVVDao.GetInstance().AddUpdateDVV(new DVV
                     {
-                        throw new Exception("No se puede eliminar la familia, quedaría patente sin asignar");
-                    }
+                        tabla = "UsuarioFamilia",
+                        dvv = DVVDao.GetInstance().CalculateDVV("UsuarioFamilia")
+                    });
                 }
-
-                // Si hay usuarios relacionados, elimino las asociaciones con la familia
-                if (usuariosFamilias.Count > 0)
+                if (patentesFamilia.Count > 0)
                 {
-                    DAL.UsuarioDao.GetInstance().DeleteUsuarioFamilia(familia.Id);
-                }
-
-                // Si hay patentes asignadas a la Familia, las elimino
-                if (patentesFamilias.Count > 0)
-                {
-                    DAL.PatenteDao.GetInstance().DeletePatenteFamilia(familia.Id);
-                    DVV dvv = new DVV()
+                    PatenteDao.GetInstance().DeletePatenteFamilia(familia.Id);
+                    DVVDao.GetInstance().AddUpdateDVV(new DVV
                     {
                         tabla = "FamiliaPatente",
-                        dvv = DVVDao.GetInstance().CalculateDVV("FamiliaPatente"),
-                    };
-                    DVVDao.GetInstance().AddUpdateDVV(dvv);
+                        dvv = DVVDao.GetInstance().CalculateDVV("FamiliaPatente")
+                    });
                 }
+                Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(sqlDelFamilia, sqlParams);
 
-                // Ejecuta el DELETE en la tabla Familia
-                Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(queryDelFamilia, sqlParams);
-                result = true;
+                DVVDao.GetInstance().AddUpdateDVV(new DVV
+                {
+                    tabla = "Familia",
+                    dvv = DVVDao.GetInstance().CalculateDVV("Familia")
+                });
+
+                return true;
             }
-            catch (Exception e)
+            catch
             {
-                throw e;
+                throw;
             }
-
-            return result;
         }
         public List<Familia> GetAll()
         {
@@ -262,5 +258,38 @@ namespace DAL
         }
         #endregion
 
+        public bool SetPatentes(int idFamilia, IEnumerable<int> idsPatentesSeleccionadas)
+        {
+            var actuales = PatenteDao.GetInstance().GetPatentesFamilia(idFamilia);
+            var actualesIds = new HashSet<int>(actuales.Select(p => p.Id));
+            var nuevasIds = new HashSet<int>(idsPatentesSeleccionadas ?? Enumerable.Empty<int>());
+
+            var altas = nuevasIds.Except(actualesIds).ToList();
+            var bajas = actualesIds.Except(nuevasIds).ToList();
+
+            foreach (var idPat in bajas)
+                if (!PatenteDao.GetInstance().CheckPatenteAsing(idPat))
+                    throw new Exception("No se puede quitar la última asignación de una patente (huérfana).");
+
+            foreach (var idAlta in altas)
+            {
+                var ok = AddUpdatePatente(new BE.Familia { Id = idFamilia }, new BE.Patente { Id = idAlta }, new BE.DVH { dvh = null });
+                if (!ok) throw new Exception("No se pudo asignar una patente a la familia.");
+            }
+
+            foreach (var idBaja in bajas)
+            {
+                var ok = DelPatente(new BE.Familia { Id = idFamilia }, new BE.Patente { Id = idBaja });
+                if (!ok) throw new Exception("No se pudo quitar una patente de la familia.");
+            }
+
+            DVVDao.GetInstance().AddUpdateDVV(new BE.DVV
+            {
+                tabla = "FamiliaPatente",
+                dvv = DVVDao.GetInstance().CalculateDVV("FamiliaPatente")
+            });
+
+            return true;
+        }
     }
 }

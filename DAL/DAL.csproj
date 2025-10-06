@@ -32,6 +32,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -42,6 +43,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BitacoraDao.cs" />
+    <Compile Include="ConnectionFactory.cs" />
     <Compile Include="DBDao.cs" />
     <Compile Include="DVHDao.cs" />
     <Compile Include="DVVDao.cs" />
@@ -67,6 +69,7 @@
     <Compile Include="TarjetaDao.cs" />
     <Compile Include="TranslatorDao.cs" />
     <Compile Include="UsuarioDao.cs" />
+    <Compile Include="UsuarioRolServices.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\BE\BE.csproj">

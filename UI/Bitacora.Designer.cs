@@ -99,7 +99,7 @@
             this.groupBox1.Font = new System.Drawing.Font("Segoe UI Semibold", 10.2F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.groupBox1.Location = new System.Drawing.Point(12, 65);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(1070, 144);
+            this.groupBox1.Size = new System.Drawing.Size(1078, 144);
             this.groupBox1.TabIndex = 15;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Filtros";
@@ -212,14 +212,14 @@
             this.grdBitacora.Name = "grdBitacora";
             this.grdBitacora.RowHeadersWidth = 51;
             this.grdBitacora.RowTemplate.Height = 24;
-            this.grdBitacora.Size = new System.Drawing.Size(1064, 356);
+            this.grdBitacora.Size = new System.Drawing.Size(1078, 356);
             this.grdBitacora.TabIndex = 28;
             // 
             // Bitacora
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1100, 562);
+            this.ClientSize = new System.Drawing.Size(1102, 555);
             this.Controls.Add(this.grdBitacora);
             this.Controls.Add(this.groupBox1);
             this.Controls.Add(this.panel1);

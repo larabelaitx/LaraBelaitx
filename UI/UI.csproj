@@ -62,6 +62,12 @@
     <Compile Include="AltaCuenta.Designer.cs">
       <DependentUpon>AltaCuenta.cs</DependentUpon>
     </Compile>
+    <Compile Include="AltaFamilia.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="AltaFamilia.Designer.cs">
+      <DependentUpon>AltaFamilia.cs</DependentUpon>
+    </Compile>
     <Compile Include="AltaUsuario.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -80,6 +86,18 @@
     <Compile Include="Bitacora.Designer.cs">
       <DependentUpon>Bitacora.cs</DependentUpon>
     </Compile>
+    <Compile Include="ConfigStringConn.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ConfigStringConn.Designer.cs">
+      <DependentUpon>ConfigStringConn.cs</DependentUpon>
+    </Compile>
+    <Compile Include="DialogRolesUsuario.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="DialogRolesUsuario.Designer.cs">
+      <DependentUpon>DialogRolesUsuario.cs</DependentUpon>
+    </Compile>
     <Compile Include="MainClientes.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -97,6 +115,12 @@
     </Compile>
     <Compile Include="MainCuentas.Designer.cs">
       <DependentUpon>MainCuentas.cs</DependentUpon>
+    </Compile>
+    <Compile Include="MainFamilia.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MainFamilia.Designer.cs">
+      <DependentUpon>MainFamilia.cs</DependentUpon>
     </Compile>
     <Compile Include="MainURP.cs">
       <SubType>Form</SubType>
@@ -124,6 +148,9 @@
     <EmbeddedResource Include="AltaCuenta.resx">
       <DependentUpon>AltaCuenta.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="AltaFamilia.resx">
+      <DependentUpon>AltaFamilia.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="AltaUsuario.resx">
       <DependentUpon>AltaUsuario.cs</DependentUpon>
     </EmbeddedResource>
@@ -133,6 +160,12 @@
     <EmbeddedResource Include="Bitacora.resx">
       <DependentUpon>Bitacora.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="ConfigStringConn.resx">
+      <DependentUpon>ConfigStringConn.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="DialogRolesUsuario.resx">
+      <DependentUpon>DialogRolesUsuario.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="MainClientes.resx">
       <DependentUpon>MainClientes.cs</DependentUpon>
     </EmbeddedResource>
@@ -141,6 +174,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="MainCuentas.resx">
       <DependentUpon>MainCuentas.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="MainFamilia.resx">
+      <DependentUpon>MainFamilia.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="MainURP.resx">
       <DependentUpon>MainURP.cs</DependentUpon>

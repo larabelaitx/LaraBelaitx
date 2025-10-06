@@ -46,14 +46,11 @@ namespace DAL.Mappers
                 u.IdiomaNombre = idioma?.Name ?? "—";
             }
 
-            u.Language = u.IdiomaId.HasValue ? new BE.Idioma { Id = u.IdiomaId.Value, Name = u.IdiomaNombre } : null;
-            u.Enabled = new BE.Estado { Id = u.EstadoUsuarioId, Name = u.EstadoDisplay };
-
             var permisosUsuario = DAL.PatenteDao.GetInstance().GetPatentesUsuario(u.Id);
             var familiasUsuario = DAL.FamiliaDao.GetInstance().GetFamiliasUsuario(u.Id);
 
             foreach (var fam in familiasUsuario)
-                foreach (var perm in fam.Patentes)
+                foreach (var perm in fam.Permisos)
                     if (!permisosUsuario.Any(p => p.Id == perm.Id))
                         permisosUsuario.Add(perm);
 
@@ -92,16 +89,11 @@ namespace DAL.Mappers
                     var idioma = DAL.IdiomaDao.GetInstance().GetById(u.IdiomaId.Value);
                     u.IdiomaNombre = idioma?.Name ?? "—";
                 }
-
-                // Compatibilidad con [Obsolete]
-                u.Language = u.IdiomaId.HasValue ? new BE.Idioma { Id = u.IdiomaId.Value, Name = u.IdiomaNombre } : null;
-                u.Enabled = new BE.Estado { Id = u.EstadoUsuarioId, Name = u.EstadoDisplay };
-
                 var permisosUsuario = DAL.PatenteDao.GetInstance().GetPatentesUsuario(u.Id);
                 var familiasUsuario = DAL.FamiliaDao.GetInstance().GetFamiliasUsuario(u.Id);
 
                 foreach (var fam in familiasUsuario)
-                    foreach (var perm in fam.Patentes)
+                    foreach (var perm in fam.Permisos)
                         if (!permisosUsuario.Any(p => p.Id == perm.Id))
                             permisosUsuario.Add(perm);
 
@@ -112,8 +104,6 @@ namespace DAL.Mappers
 
             return list;
         }
-
-        // Helpers null-safe
         private static bool Has(DataRow r, string c) => r.Table.Columns.Contains(c);
         private static T Get<T>(DataRow r, string c, T def = default)
         {

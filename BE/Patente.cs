@@ -10,7 +10,7 @@ namespace BE
     {
         public override bool TienePermiso(Permiso permiso)
         {
-            return (permiso.Id == this.Id);
+            return permiso != null && permiso.Id == this.Id;
         }
     }
 }

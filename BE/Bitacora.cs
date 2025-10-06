@@ -10,14 +10,18 @@ namespace BE
     public class Bitacora
     {
         public int Id { get; set; }
+
         [Browsable(false)]
-        public BE.Criticidad Criticidad { get; set; }
+        public Criticidad Criticidad { get; set; }
+
         [DisplayName("Criticidad")]
-        public string strCritc { get => Criticidad.Detalle; }
+        public string strCritc => Criticidad?.Detalle ?? "—";
+
         [Browsable(false)]
-        public BE.Usuario Usuario { get; set; }
+        public Usuario Usuario { get; set; }
+
         [DisplayName("Usuario")]
-        public string strUsuario { get => Usuario.Email; }
+        public string strUsuario => Usuario?.Email ?? "—";
         public string Descripcion { get; set; }
         public DateTime Fecha { get; set; }
     }

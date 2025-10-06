@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using BE;
@@ -319,6 +320,55 @@ namespace DAL
                 return rows > 0;
             }
             catch { throw; }
+        }
+    
+    public bool SetUsuarioFamilia(int idUsuario, int idFamilia)
+        {
+            const string del = "DELETE FROM UsuarioFamilia WHERE IdUsuario = @U";
+            const string ins = "INSERT INTO UsuarioFamilia (IdUsuario, IdFamilia) VALUES (@U, @F)";
+
+            var psDel = new List<SqlParameter> { new SqlParameter("@U", idUsuario) };
+            Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(del, psDel);
+
+            var psIns = new List<SqlParameter> { new SqlParameter("@U", idUsuario), new SqlParameter("@F", idFamilia) };
+            int rows = Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(ins, psIns);
+
+            DVVDao.GetInstance().AddUpdateDVV(new BE.DVV
+            {
+                tabla = "UsuarioFamilia",
+                dvv = DVVDao.GetInstance().CalculateDVV("UsuarioFamilia")
+            });
+
+            return rows > 0;
+        }
+    
+    public bool SetUsuarioFamilias(int idUsuario, IEnumerable<int> familiasIds)
+        {
+            const string del = "DELETE FROM UsuarioFamilia WHERE IdUsuario = @U";
+            var psDel = new List<SqlParameter> { new SqlParameter("@U", idUsuario) };
+            Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(del, psDel);
+
+            if (familiasIds != null)
+            {
+                foreach (var idF in familiasIds.Distinct())
+                {
+                    const string ins = "INSERT INTO UsuarioFamilia (IdUsuario, IdFamilia) VALUES (@U, @F)";
+                    var psIns = new List<SqlParameter>
+            {
+                new SqlParameter("@U", idUsuario),
+                new SqlParameter("@F", idF)
+            };
+                    Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(ins, psIns);
+                }
+            }
+
+            DVVDao.GetInstance().AddUpdateDVV(new BE.DVV
+            {
+                tabla = "UsuarioFamilia",
+                dvv = DVVDao.GetInstance().CalculateDVV("UsuarioFamilia")
+            });
+
+            return true;
         }
     }
 }

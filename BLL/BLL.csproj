@@ -53,6 +53,7 @@
     <Compile Include="Services\ICuentaService.cs" />
     <Compile Include="Services\IDVServices.cs" />
     <Compile Include="Services\RolService.cs" />
+    <Compile Include="Services\UsuarioRolService.cs" />
     <Compile Include="Services\UsuarioService.cs" />
   </ItemGroup>
   <ItemGroup>

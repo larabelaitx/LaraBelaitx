@@ -19,6 +19,7 @@ namespace BE
             DebeCambiarContraseña = true;
             Tries = 0;
         }
+
         public int Id { get; set; }
 
         [DisplayName("Nombre")]
@@ -34,13 +35,13 @@ namespace BE
         public string Email { get; set; }
 
         [Browsable(false)]
-        public string PasswordHash { get; set; }    
+        public string PasswordHash { get; set; }
 
         [Browsable(false)]
-        public string PasswordSalt { get; set; }   
+        public string PasswordSalt { get; set; }
 
         [Browsable(false)]
-        public int PasswordIterations { get; set; }  
+        public int PasswordIterations { get; set; }
 
         [Browsable(false)]
         [DisplayName("Intentos Fallidos")]
@@ -51,13 +52,10 @@ namespace BE
         public bool DebeCambiarContraseña { get; set; }
 
         [Browsable(false)]
-        public int EstadoUsuarioId { get; set; } 
+        public int EstadoUsuarioId { get; set; }
 
         [DisplayName("Habilitado")]
-        public bool IsEnabled
-        {
-            get { return EstadoUsuarioId == EstadosUsuario.Habilitado; }
-        }
+        public bool IsEnabled => EstadoUsuarioId == EstadosUsuario.Habilitado;
 
         [DisplayName("Estado")]
         public string EstadoDisplay
@@ -78,27 +76,32 @@ namespace BE
         public int? IdiomaId { get; set; }
 
         [DisplayName("Idioma")]
-        public string IdiomaNombre { get; set; } 
+        public string IdiomaNombre { get; set; }
 
         [DisplayName("Documento")]
         public string Documento { get; set; }
 
+        /// <summary>
+        /// Si manejás un perfil principal por FK (opcional, según tu DAL/UI).
+        /// </summary>
         [Browsable(false)]
         public int RolId { get; set; }
 
         [DisplayName("Nombre Completo")]
-        public string NombreCompleto
-        {
-            get { return (LastName ?? "").Trim() + ", " + (Name ?? "").Trim(); }
-        }
+        public string NombreCompleto => $"{(LastName ?? "").Trim()}, {(Name ?? "").Trim()}";
+
         [Browsable(false)]
         public DateTime? UltimoLoginUtc { get; set; }
 
         [Browsable(false)]
         public DateTime? BloqueadoHastaUtc { get; set; }
+
         [Browsable(false)]
         public string DVH { get; set; }
 
+        /// <summary>
+        /// Permisos efectivos del usuario (directos o por familia).
+        /// </summary>
         [Browsable(false)]
         public List<Permiso> Permisos { get; set; }
 
@@ -114,4 +117,5 @@ namespace BE
         [Browsable(false)]
         public Idioma Language { get; set; }
     }
+
 }

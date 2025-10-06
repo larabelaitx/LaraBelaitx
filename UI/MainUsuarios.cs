@@ -9,6 +9,7 @@ using System.Windows.Forms;
 using BLL;
 using BLL.Contracts;
 using Krypton.Toolkit;
+using BE;
 
 
 
@@ -48,6 +49,8 @@ namespace UI
         {
             CargarCombos();
             Refrescar();
+            dgvUsuarios.CellFormatting += dgvUsuarios_CellFormatting;
+
         }
 
         private void CargarCombos()
@@ -93,6 +96,16 @@ namespace UI
                 dgvUsuarios.Columns.Add(new DataGridViewButtonColumn { Name = "btnBaja", HeaderText = "Baja", Text = "Baja", UseColumnTextForButtonValue = true });
             if (!dgvUsuarios.Columns.Contains("btnReactivar"))
                 dgvUsuarios.Columns.Add(new DataGridViewButtonColumn { Name = "btnReactivar", HeaderText = "Reactivar", Text = "Reactivar", UseColumnTextForButtonValue = true });
+           
+            if (!dgvUsuarios.Columns.Contains("colRoles"))
+                dgvUsuarios.Columns.Add(new DataGridViewButtonColumn
+                {
+                    Name = "colRoles",
+                    HeaderText = "Roles",
+                    Text = "Roles (0)",     
+                    UseColumnTextForButtonValue = false, 
+                    Width = 100
+                });
         }
 
         private void Refrescar()
@@ -197,7 +210,8 @@ namespace UI
                     break;
 
                 case "btnBaja":
-                    if (KryptonMessageBox.Show("¿Dar de baja al usuario?", "Confirmar", KryptonMessageBoxButtons.YesNo) == DialogResult.Yes)
+                    if (KryptonMessageBox.Show("¿Dar de baja al usuario?", "Confirmar",
+                        KryptonMessageBoxButtons.YesNo) == DialogResult.Yes)
                     {
                         var u = _svcUsuarios.GetById(vm.Id);
                         if (u != null)
@@ -209,12 +223,61 @@ namespace UI
                     break;
 
                 case "btnReactivar":
-                    if (KryptonMessageBox.Show("¿Reactivar al usuario?", "Confirmar", KryptonMessageBoxButtons.YesNo) == DialogResult.Yes)
+                    // Desbloquea si está bloqueado o reactiva si estaba dado de baja
+                    if (KryptonMessageBox.Show("¿Desbloquear / reactivar al usuario?", "Confirmar",
+                        KryptonMessageBoxButtons.YesNo) == DialogResult.Yes)
                     {
                         _svcUsuarios.DesbloquearUsuario(vm.Id);
                         Refrescar();
                     }
                     break;
+
+                case "colRoles":
+                    {
+                        var usuario = _svcUsuarios.GetById(vm.Id);
+
+                        var idsActuales = (_svcRoles.GetFamiliasUsuario(vm.Id) ?? new List<Familia>())
+                                          .Select(f => f.Id);
+
+                        using (var dlg = new DialogRolesUsuario(usuario, idsActuales))
+                        {
+                            if (dlg.ShowDialog(this) == DialogResult.OK)
+                            {
+                                _svcRoles.SetFamiliasDeUsuario(vm.Id, dlg.FamiliasSeleccionadasIds);
+                                Refrescar();
+                            }
+                        }
+                        break;
+                    }
+            }
+        }
+        private void dgvUsuarios_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+
+            var col = dgvUsuarios.Columns[e.ColumnIndex].Name;
+            var vm = dgvUsuarios.Rows[e.RowIndex].DataBoundItem as UsuarioVM;
+            if (vm == null) return;
+
+            // Columna Roles (contador)
+            if (col == "colRoles")
+            {
+                var familias = _svcRoles.GetFamiliasUsuario(vm.Id) ?? new List<Familia>();
+                dgvUsuarios.Rows[e.RowIndex].Cells[e.ColumnIndex].Value = $"Roles ({familias.Count})";
+                return;
+            }
+
+            // Cambiar texto del botón según estado
+            if (col == "btnReactivar")
+            {
+                var cell = dgvUsuarios.Rows[e.RowIndex].Cells[e.ColumnIndex] as DataGridViewButtonCell;
+                if (cell != null)
+                {
+                    // Estado viene del VM (u.EstadoDisplay): "Habilitado", "Bloqueado" o "Baja"
+                    cell.Value = vm.Estado.Equals("Bloqueado", StringComparison.OrdinalIgnoreCase)
+                        ? "Desbloquear"
+                        : "Reactivar";
+                }
             }
         }
         private void DescargarCsv()
