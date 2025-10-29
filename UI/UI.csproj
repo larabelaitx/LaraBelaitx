@@ -68,6 +68,12 @@
     <Compile Include="AltaFamilia.Designer.cs">
       <DependentUpon>AltaFamilia.cs</DependentUpon>
     </Compile>
+    <Compile Include="AltaPatente.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="AltaPatente.Designer.cs">
+      <DependentUpon>AltaPatente.cs</DependentUpon>
+    </Compile>
     <Compile Include="AltaUsuario.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -85,6 +91,12 @@
     </Compile>
     <Compile Include="Bitacora.Designer.cs">
       <DependentUpon>Bitacora.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ChangePasswordDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ChangePasswordDialog.Designer.cs">
+      <DependentUpon>ChangePasswordDialog.cs</DependentUpon>
     </Compile>
     <Compile Include="ConfigStringConn.cs">
       <SubType>Form</SubType>
@@ -116,11 +128,23 @@
     <Compile Include="MainCuentas.Designer.cs">
       <DependentUpon>MainCuentas.cs</DependentUpon>
     </Compile>
+    <Compile Include="MainDV.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MainDV.Designer.cs">
+      <DependentUpon>MainDV.cs</DependentUpon>
+    </Compile>
     <Compile Include="MainFamilia.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="MainFamilia.Designer.cs">
       <DependentUpon>MainFamilia.cs</DependentUpon>
+    </Compile>
+    <Compile Include="MainPatente.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MainPatente.Designer.cs">
+      <DependentUpon>MainPatente.cs</DependentUpon>
     </Compile>
     <Compile Include="MainURP.cs">
       <SubType>Form</SubType>
@@ -151,6 +175,9 @@
     <EmbeddedResource Include="AltaFamilia.resx">
       <DependentUpon>AltaFamilia.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="AltaPatente.resx">
+      <DependentUpon>AltaPatente.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="AltaUsuario.resx">
       <DependentUpon>AltaUsuario.cs</DependentUpon>
     </EmbeddedResource>
@@ -159,6 +186,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Bitacora.resx">
       <DependentUpon>Bitacora.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ChangePasswordDialog.resx">
+      <DependentUpon>ChangePasswordDialog.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="ConfigStringConn.resx">
       <DependentUpon>ConfigStringConn.cs</DependentUpon>

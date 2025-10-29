@@ -31,17 +31,17 @@
             this.kryptonDataGridView1 = new Krypton.Toolkit.KryptonDataGridView();
             this.kryptonGroupBox1 = new Krypton.Toolkit.KryptonGroupBox();
             this.btnCerrarSesion = new System.Windows.Forms.Button();
-            this.btnDigitos = new System.Windows.Forms.Button();
+            this.btnDigitosVerificadores = new System.Windows.Forms.Button();
             this.btnBackupRestore = new System.Windows.Forms.Button();
             this.btnBitacora = new System.Windows.Forms.Button();
             this.btnUsuariosRolesPermisos = new System.Windows.Forms.Button();
-            this.btnTarjeta = new System.Windows.Forms.Button();
+            this.btnTarjetas = new System.Windows.Forms.Button();
             this.btnCuentas = new System.Windows.Forms.Button();
             this.btnClientes = new System.Windows.Forms.Button();
             this.dataGridView1 = new System.Windows.Forms.DataGridView();
             this.panel1 = new System.Windows.Forms.Panel();
             this.label2 = new System.Windows.Forms.Label();
-            this.btnPerfil = new System.Windows.Forms.Button();
+            this.btnMiPerfil = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
             ((System.ComponentModel.ISupportInitialize)(this.kryptonDataGridView1)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.kryptonGroupBox1)).BeginInit();
@@ -74,11 +74,11 @@
             // kryptonGroupBox1.Panel
             // 
             this.kryptonGroupBox1.Panel.Controls.Add(this.btnCerrarSesion);
-            this.kryptonGroupBox1.Panel.Controls.Add(this.btnDigitos);
+            this.kryptonGroupBox1.Panel.Controls.Add(this.btnDigitosVerificadores);
             this.kryptonGroupBox1.Panel.Controls.Add(this.btnBackupRestore);
             this.kryptonGroupBox1.Panel.Controls.Add(this.btnBitacora);
             this.kryptonGroupBox1.Panel.Controls.Add(this.btnUsuariosRolesPermisos);
-            this.kryptonGroupBox1.Panel.Controls.Add(this.btnTarjeta);
+            this.kryptonGroupBox1.Panel.Controls.Add(this.btnTarjetas);
             this.kryptonGroupBox1.Panel.Controls.Add(this.btnCuentas);
             this.kryptonGroupBox1.Panel.Controls.Add(this.btnClientes);
             this.kryptonGroupBox1.Size = new System.Drawing.Size(283, 594);
@@ -95,16 +95,16 @@
             this.btnCerrarSesion.Text = "Cerrar Sesión";
             this.btnCerrarSesion.UseVisualStyleBackColor = true;
             // 
-            // btnDigitos
+            // btnDigitosVerificadores
             // 
-            this.btnDigitos.Dock = System.Windows.Forms.DockStyle.Top;
-            this.btnDigitos.Font = new System.Drawing.Font("Segoe UI Semibold", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.btnDigitos.Location = new System.Drawing.Point(0, 378);
-            this.btnDigitos.Name = "btnDigitos";
-            this.btnDigitos.Size = new System.Drawing.Size(279, 63);
-            this.btnDigitos.TabIndex = 16;
-            this.btnDigitos.Text = "Dígitos Verificadores";
-            this.btnDigitos.UseVisualStyleBackColor = true;
+            this.btnDigitosVerificadores.Dock = System.Windows.Forms.DockStyle.Top;
+            this.btnDigitosVerificadores.Font = new System.Drawing.Font("Segoe UI Semibold", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnDigitosVerificadores.Location = new System.Drawing.Point(0, 378);
+            this.btnDigitosVerificadores.Name = "btnDigitosVerificadores";
+            this.btnDigitosVerificadores.Size = new System.Drawing.Size(279, 63);
+            this.btnDigitosVerificadores.TabIndex = 16;
+            this.btnDigitosVerificadores.Text = "Dígitos Verificadores";
+            this.btnDigitosVerificadores.UseVisualStyleBackColor = true;
             // 
             // btnBackupRestore
             // 
@@ -139,16 +139,16 @@
             this.btnUsuariosRolesPermisos.Text = "Usuario, Roles y Permisos";
             this.btnUsuariosRolesPermisos.UseVisualStyleBackColor = true;
             // 
-            // btnTarjeta
+            // btnTarjetas
             // 
-            this.btnTarjeta.Dock = System.Windows.Forms.DockStyle.Top;
-            this.btnTarjeta.Font = new System.Drawing.Font("Segoe UI Semibold", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.btnTarjeta.Location = new System.Drawing.Point(0, 126);
-            this.btnTarjeta.Name = "btnTarjeta";
-            this.btnTarjeta.Size = new System.Drawing.Size(279, 63);
-            this.btnTarjeta.TabIndex = 12;
-            this.btnTarjeta.Text = "Tarjetas";
-            this.btnTarjeta.UseVisualStyleBackColor = true;
+            this.btnTarjetas.Dock = System.Windows.Forms.DockStyle.Top;
+            this.btnTarjetas.Font = new System.Drawing.Font("Segoe UI Semibold", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnTarjetas.Location = new System.Drawing.Point(0, 126);
+            this.btnTarjetas.Name = "btnTarjetas";
+            this.btnTarjetas.Size = new System.Drawing.Size(279, 63);
+            this.btnTarjetas.TabIndex = 12;
+            this.btnTarjetas.Text = "Tarjetas";
+            this.btnTarjetas.UseVisualStyleBackColor = true;
             // 
             // btnCuentas
             // 
@@ -192,12 +192,11 @@
             // 
             this.panel1.BackColor = System.Drawing.Color.CornflowerBlue;
             this.panel1.Controls.Add(this.label2);
-            this.panel1.Controls.Add(this.btnPerfil);
+            this.panel1.Controls.Add(this.btnMiPerfil);
             this.panel1.Location = new System.Drawing.Point(1, 0);
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(1091, 58);
             this.panel1.TabIndex = 5;
-            this.panel1.Paint += new System.Windows.Forms.PaintEventHandler(this.panel1_Paint);
             // 
             // label2
             // 
@@ -209,16 +208,16 @@
             this.label2.TabIndex = 7;
             this.label2.Text = "ITX - Tarjetas de Débito";
             // 
-            // btnPerfil
+            // btnMiPerfil
             // 
-            this.btnPerfil.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnPerfil.Font = new System.Drawing.Font("Segoe UI Semibold", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.btnPerfil.Location = new System.Drawing.Point(885, 13);
-            this.btnPerfil.Name = "btnPerfil";
-            this.btnPerfil.Size = new System.Drawing.Size(193, 31);
-            this.btnPerfil.TabIndex = 0;
-            this.btnPerfil.Text = "Mi Perfil";
-            this.btnPerfil.UseVisualStyleBackColor = true;
+            this.btnMiPerfil.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnMiPerfil.Font = new System.Drawing.Font("Segoe UI Semibold", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnMiPerfil.Location = new System.Drawing.Point(885, 13);
+            this.btnMiPerfil.Name = "btnMiPerfil";
+            this.btnMiPerfil.Size = new System.Drawing.Size(193, 31);
+            this.btnMiPerfil.TabIndex = 0;
+            this.btnMiPerfil.Text = "Mi Perfil";
+            this.btnMiPerfil.UseVisualStyleBackColor = true;
             // 
             // label1
             // 
@@ -235,7 +234,7 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.LightSlateGray;
-            this.ClientSize = new System.Drawing.Size(1091, 606);
+            this.ClientSize = new System.Drawing.Size(1105, 557);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.panel1);
             this.Controls.Add(this.dataGridView1);
@@ -265,13 +264,13 @@
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Button btnClientes;
         private System.Windows.Forms.Label label2;
-        private System.Windows.Forms.Button btnPerfil;
+        private System.Windows.Forms.Button btnMiPerfil;
         private System.Windows.Forms.Button btnCerrarSesion;
-        private System.Windows.Forms.Button btnDigitos;
+        private System.Windows.Forms.Button btnDigitosVerificadores;
         private System.Windows.Forms.Button btnBackupRestore;
         private System.Windows.Forms.Button btnBitacora;
         private System.Windows.Forms.Button btnUsuariosRolesPermisos;
-        private System.Windows.Forms.Button btnTarjeta;
+        private System.Windows.Forms.Button btnTarjetas;
         private System.Windows.Forms.Button btnCuentas;
     }
 }

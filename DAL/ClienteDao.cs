@@ -1,23 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.SqlClient;
-using System.IO;
 using Services;
 
 namespace DAL.Mappers
 {
     public class ClienteDao : Mappers.ICRUD<BE.Cliente>
     {
-        private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Crypto.Decript(
-            FileHelper.GetInstance(configFilePath).ReadFile());
-
-        //Singleton
+        // Singleton
         private static ClienteDao _instance;
         public static ClienteDao GetInstance() => _instance ?? (_instance = new ClienteDao());
         private ClienteDao() { }
 
-        // BÚSQUEDA/FILTROS
+        // Cadena de conexión centralizada
+        private static string Cnn() => AppConn.Get();
+
+        // ------------------- BÚSQUEDA / FILTROS -------------------
         public List<BE.Cliente> Buscar(string nomApe = null, string documento = null,
                                        string estadoCivil = null, string situacionFiscal = null, bool? esPep = null)
         {
@@ -42,7 +41,7 @@ namespace DAL.Mappers
                 new SqlParameter("@PEP",    (object)(esPep.HasValue ? (esPep.Value ? 1 : 0) : (int?)null) ?? DBNull.Value)
             };
 
-            var dt = Services.SqlHelpers.GetInstance(_connString).GetDataTable(sql, ps);
+            var dt = Services.SqlHelpers.GetInstance(Cnn()).GetDataTable(sql, ps);
             return DAL.Mappers.MPCliente.GetInstance().MapClientes(dt);
         }
 
@@ -54,7 +53,7 @@ namespace DAL.Mappers
                        CorreoElectronico, Ocupacion, SituacionFiscal, EsPEP
                 FROM Cliente WHERE IdCliente = @Id;";
             var ps = new List<SqlParameter> { new SqlParameter("@Id", id) };
-            var dt = Services.SqlHelpers.GetInstance(_connString).GetDataTable(sql, ps);
+            var dt = Services.SqlHelpers.GetInstance(Cnn()).GetDataTable(sql, ps);
             return DAL.Mappers.MPCliente.GetInstance().Map(dt);
         }
 
@@ -66,11 +65,11 @@ namespace DAL.Mappers
                        CorreoElectronico, Ocupacion, SituacionFiscal, EsPEP
                 FROM Cliente
                 ORDER BY Apellido, Nombre;";
-            var dt = Services.SqlHelpers.GetInstance(_connString).GetDataTable(sql);
+            var dt = Services.SqlHelpers.GetInstance(Cnn()).GetDataTable(sql);
             return DAL.Mappers.MPCliente.GetInstance().MapClientes(dt);
         }
 
-        // ALTAS/BAJAS/MODIFICACIONES (con DVH opcional)
+        // ------------------- ALTAS / BAJAS / MODIFICACIONES -------------------
         public int Add(BE.Cliente c, BE.DVH dvh = null)
         {
             const string sql = @"
@@ -85,15 +84,14 @@ namespace DAL.Mappers
 
             var columnasDVH = dvh == null ? "" : ", DVH";
             var valoresDVH = dvh == null ? "" : ", @DVH";
-
             var cmdText = string.Format(sql, columnasDVH, valoresDVH);
 
             var ps = Params(c);
             if (dvh != null) ps.Add(new SqlParameter("@DVH", dvh.dvh));
 
-            var id = (int)Services.SqlHelpers.GetInstance(_connString).ExecuteScalar(cmdText, ps);
+            var id = (int)Services.SqlHelpers.GetInstance(Cnn()).ExecuteScalar(cmdText, ps);
 
-            // (Opcional) DVV:
+            // (Opcional) recalcular DVV:
             // var dvv = new BE.DVV { tabla = "Cliente", dvv = DVVDao.GetInstance().CalculateDVV("Cliente") };
             // DVVDao.GetInstance().AddUpdateDVV(dvv);
 
@@ -118,9 +116,9 @@ namespace DAL.Mappers
             ps.Add(new SqlParameter("@Id", c.IdCliente));
             if (dvh != null) ps.Add(new SqlParameter("@DVH", dvh.dvh));
 
-            var rows = Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(sql, ps);
+            var rows = Services.SqlHelpers.GetInstance(Cnn()).ExecuteQuery(sql, ps);
 
-            // (Opcional) DVV:
+            // (Opcional) recalcular DVV:
             // var dvv = new BE.DVV { tabla = "Cliente", dvv = DVVDao.GetInstance().CalculateDVV("Cliente") };
             // DVVDao.GetInstance().AddUpdateDVV(dvv);
 
@@ -131,18 +129,19 @@ namespace DAL.Mappers
         {
             const string sql = "DELETE FROM Cliente WHERE IdCliente=@Id;";
             var ps = new List<SqlParameter> { new SqlParameter("@Id", c.IdCliente) };
-            var rows = Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(sql, ps);
+            var rows = Services.SqlHelpers.GetInstance(Cnn()).ExecuteQuery(sql, ps);
 
             // (Opcional) DVV también
             return rows > 0;
         }
 
-        // ---- ICRUD<T> (si no usás estos, podés dejarlos NotImplemented) ----
+        // -------- Implementación ICRUD<Cliente> (si tu código lo usa) --------
         bool Mappers.ICRUD<BE.Cliente>.Add(BE.Cliente alta) => Add(alta) > 0;
         BE.Cliente Mappers.ICRUD<BE.Cliente>.GetById(int id) => GetById(id);
         bool Mappers.ICRUD<BE.Cliente>.Update(BE.Cliente update) => Update(update);
         bool Mappers.ICRUD<BE.Cliente>.Delete(BE.Cliente delete) => Delete(delete);
 
+        // ------------------- Helpers -------------------
         private static List<SqlParameter> Params(BE.Cliente c) => new List<SqlParameter>
         {
             new SqlParameter("@Nombre", (object)c.Nombre ?? DBNull.Value),

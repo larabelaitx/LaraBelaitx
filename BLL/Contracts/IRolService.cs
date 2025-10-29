@@ -1,26 +1,22 @@
 ﻿using System.Collections.Generic;
-using BE;
 
-namespace BLL.Contracts
+public interface IRolService
 {
-    public interface IRolService
-    {
-        List<Familia> GetFamilias();
-        HashSet<Permiso> GetPatentes();
-        List<Familia> GetFamiliasUsuario(int idUsuario);
-        List<Familia> ListarRoles();
-        bool CrearFamilia(Familia f);
-        bool ActualizarFamilia(Familia f);
-        bool EliminarFamilia(Familia f);
-        bool AgregarPatenteAFamilia(Familia f, Permiso p);
-        bool QuitarPatenteAFamilia(Familia f, Permiso p);
-        bool SetPatentesFamilia(int idFamilia, IEnumerable<int> idsPatentesSeleccionadas);
-        HashSet<Permiso> GetPatentesPorSector(int sector);
-        bool AsignarFamiliaAUsuario(int idUsuario, int idFamilia);
-        bool SetFamiliasDeUsuario(int idUsuario, IEnumerable<int> familiasIds);
-        Familia GetFamilia(int idFamilia);
-        List<Patente> GetPatentesDeFamilia(int idFamilia);
-        void SetPatentesDeFamilia(int idFamilia, IEnumerable<int> patentesIds);
+    IEnumerable<BE.Permiso> ListarRoles();
+    BE.Familia GetFamilia(int id);
+    int CrearFamilia(BE.Familia f);
+    bool ActualizarFamilia(BE.Familia f);
 
-    }
+    // Patentes (permisos simples)
+    List<BE.Patente> GetPatentes();
+    List<BE.Patente> GetPatentesDeFamilia(int idFamilia);
+    bool SetPatentesDeFamilia(int idFamilia, IEnumerable<int> idsPatentes);
+
+    // Asignación de familias a usuarios
+    List<BE.Familia> GetFamiliasUsuario(int idUsuario);
+    bool SetFamiliasDeUsuario(int idUsuario, IEnumerable<int> familiasIds);
+
+    // ➕ NUEVO: patentes asignadas directamente a un usuario
+    List<BE.Permiso> GetPatentesDeUsuario(int idUsuario);
+    bool SetPatentesDeUsuario(int idUsuario, IEnumerable<int> idsPatentes);
 }

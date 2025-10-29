@@ -55,6 +55,7 @@
     <Compile Include="Services\RolService.cs" />
     <Compile Include="Services\UsuarioRolService.cs" />
     <Compile Include="Services\UsuarioService.cs" />
+    <Compile Include="Translator.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\BE\BE.csproj">

@@ -1,92 +1,141 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Services;
 
 namespace DAL
 {
-    public class DBDao
+    /// <summary>
+    /// Operaciones de mantenimiento de base de datos:
+    /// - Exponer la cadena de conexión actual (desde ConnectionFactory/AppConn).
+    /// - Backup y Restore (para la UI BackupRestore).
+    /// </summary>
+    public sealed class DBDao
     {
+        private static readonly DBDao _inst = new DBDao();
+        public static DBDao GetInstance() => _inst;
+        private DBDao() { }
 
-        private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Crypto.Decript(FileHelper.GetInstance(configFilePath).ReadFile());
+        /// <summary>
+        /// Cadena de conexión actual (centralizada).
+        /// </summary>
+        public string ConnectionString => ConnectionFactory.Current;
 
-        #region Singleton
-        private static DBDao _instance;
-        public static DBDao GetInstance()
+        /// <summary>
+        /// Realiza un BACKUP DATABASE a la carpeta indicada.
+        /// Si partitions &gt; 1, genera múltiples archivos .bak (medios de backup).
+        /// </summary>
+        public void Backup(string targetFolder, int partitions = 1)
         {
-            if (_instance == null)
+            if (string.IsNullOrWhiteSpace(targetFolder))
+                throw new ArgumentException("Carpeta destino inválida.", nameof(targetFolder));
+
+            if (!Directory.Exists(targetFolder))
+                Directory.CreateDirectory(targetFolder);
+
+            var csb = new SqlConnectionStringBuilder(ConnectionString);
+            string db = csb.InitialCatalog;
+            if (string.IsNullOrWhiteSpace(db))
+                throw new InvalidOperationException("No se pudo determinar la base de datos (Initial Catalog).");
+
+            // Archivos de salida
+            string stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            string baseName = Path.Combine(targetFolder, $"{db}_{stamp}");
+
+            // Construimos la cláusula TO DISK= ... [ , DISK = ... ]
+            string toDisks;
+            if (partitions <= 1)
             {
-                _instance = new DBDao();
+                string f1 = baseName + ".bak";
+                toDisks = $"DISK = N'{f1.Replace("'", "''")}'";
+            }
+            else
+            {
+                var parts = new string[partitions];
+                for (int i = 0; i < partitions; i++)
+                {
+                    string fi = $"{baseName}_p{i + 1}.bak";
+                    parts[i] = $"DISK = N'{fi.Replace("'", "''")}'";
+                }
+                toDisks = string.Join(", ", parts);
             }
 
-            return _instance;
-        }
-        #endregion
+            // IMPORTANTE: usar WITH INIT para sobreescribir si existen, y COPY_ONLY para no afectar cadena de backups
+            string sql = $@"
+BACKUP DATABASE [{db}]
+TO {toDisks}
+WITH INIT, COPY_ONLY, NAME = N'Backup {db} {stamp}', STATS = 5;";
 
-        public void Backup(string path, int partitions)
-        {
-            using (SqlConnection connection = new SqlConnection(_connString))
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
             {
-                connection.Open();
+                cmd.CommandTimeout = 0; // por si tarda
+                cmd.ExecuteNonQuery();
+            }
+        }
 
-                string fechaHora = DateTime.Now.ToString("yyyy-MM-dd, HH-mm-ss");
+        /// <summary>
+        /// Restaura la base desde uno o varios archivos .bak.
+        /// Usa SINGLE_USER y luego MULTI_USER para asegurar la restauración.
+        /// </summary>
+        public void Restore(string[] backupFiles)
+        {
+            if (backupFiles == null || backupFiles.Length == 0)
+                throw new ArgumentException("Debés seleccionar al menos un archivo .bak", nameof(backupFiles));
 
-                string backupCommand = $"BACKUP DATABASE [PamperoControl] TO ";
+            foreach (var f in backupFiles)
+            {
+                if (string.IsNullOrWhiteSpace(f) || !File.Exists(f))
+                    throw new FileNotFoundException("Archivo de backup inexistente.", f ?? "(null)");
+            }
 
-                for (int i = 1; i <= partitions; i++)
+            var csb = new SqlConnectionStringBuilder(ConnectionString);
+            string db = csb.InitialCatalog;
+            if (string.IsNullOrWhiteSpace(db))
+                throw new InvalidOperationException("No se pudo determinar la base de datos (Initial Catalog).");
+
+            // DISK = 'path' [, DISK = 'path2', ...]
+            string fromDisks = string.Join(", ", Array.ConvertAll(backupFiles,
+                f => $"DISK = N'{f.Replace("'", "''")}'"));
+
+            // Restauramos desde master
+            using (var cn = new SqlConnection(
+                new SqlConnectionStringBuilder(ConnectionString) { InitialCatalog = "master" }.ConnectionString))
+            {
+                cn.Open();
+                using (var cmd = cn.CreateCommand())
+                using (var tx = cn.BeginTransaction())
                 {
-                    string partitionFile = Path.Combine(path, $"Backup{i}_{fechaHora}.bak");
+                    cmd.Transaction = tx;
+                    cmd.CommandTimeout = 0;
 
-                    backupCommand += $"DISK = '{partitionFile}'";
-
-                    if (i < partitions)
+                    try
                     {
-                        backupCommand += ", ";
+                        // Forzamos modo SINGLE_USER
+                        cmd.CommandText = $@"
+                            IF DB_ID('{db.Replace("'", "''")}') IS NOT NULL
+                            BEGIN
+                              ALTER DATABASE [{db}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+                            END";
+                        cmd.ExecuteNonQuery();
+
+                        // RESTORE (con REPLACE por si ya existe)
+                        cmd.CommandText = $@"
+                        RESTORE DATABASE [{db}]
+                        FROM {fromDisks}
+                        WITH REPLACE, STATS = 5;";
+                        cmd.ExecuteNonQuery();
+
+                        // Volver a MULTI_USER
+                        cmd.CommandText = $@"ALTER DATABASE [{db}] SET MULTI_USER;";
+                        cmd.ExecuteNonQuery();
+
+                        tx.Commit();
                     }
-                }
-
-                backupCommand += " WITH FORMAT, NAME = 'Backup_Partitioned', INIT, CHECKSUM, STATS = 10";
-
-                SqlCommand command = new SqlCommand(backupCommand, connection);
-                command.ExecuteNonQuery();
-            }
-
-        }
-        public void Restore(string[] paths)
-        {
-            using (SqlConnection connection = new SqlConnection(_connString))
-            {
-                connection.Open();
-                SqlCommand command = new SqlCommand("USE master", connection);
-
-                try
-                {
-                    command.ExecuteNonQuery();
-
-                    command.CommandText = "ALTER DATABASE [PamperoControl] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;";
-                    command.ExecuteNonQuery();
-
-                    string devices = string.Join(", ", paths.Select(path => $"DISK = '{path}'"));
-
-                    // Crear el comando de restauración con múltiples dispositivos
-                    string restoreCommand = $@"RESTORE DATABASE [PamperoControl] FROM {devices} WITH REPLACE, RECOVERY, CHECKSUM;";
-
-                    command.CommandText = restoreCommand;
-                    command.ExecuteNonQuery();
-                }
-                catch (Exception ex)
-                {
-                    throw new Exception($"Error al restaurar el backup: {ex.Message}");
-                }
-                finally
-                {
-                    command.CommandText = "ALTER DATABASE [PamperoControl] SET MULTI_USER;";
-                    command.ExecuteNonQuery();
+                    catch
+                    {
+                        try { tx.Rollback(); } catch { /* ignore */ }
+                        throw;
+                    }
                 }
             }
         }

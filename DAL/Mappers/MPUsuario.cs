@@ -1,114 +1,107 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Linq;
+using BE;
 
 namespace DAL.Mappers
 {
-    internal class MPUsuario
+    public class MPUsuario
     {
         #region Singleton
         private static MPUsuario _instance;
-        public static MPUsuario GetInstance()
-        {
-            if (_instance == null) _instance = new MPUsuario();
-            return _instance;
-        }
+        public static MPUsuario GetInstance() => _instance ?? (_instance = new MPUsuario());
         private MPUsuario() { }
         #endregion
 
-        public BE.Usuario MapUser(DataTable dt)
+        public Usuario MapUser(DataTable dt)
         {
             if (dt == null || dt.Rows.Count == 0) return null;
-            var r = dt.Rows[0];
+            return MapRow(dt.Rows[0]);
+        }
 
-            var u = new BE.Usuario
+        public List<Usuario> Map(DataTable dt)
+        {
+            var list = new List<Usuario>();
+            if (dt == null) return list;
+            foreach (DataRow r in dt.Rows) list.Add(MapRow(r));
+            return list;
+        }
+
+        private Usuario MapRow(DataRow r)
+        {
+            var hashBytes = GetBytes(r, "PasswordHash");
+            var saltBytes = GetBytes(r, "PasswordSalt");
+
+            var u = new Usuario
             {
                 Id = Get<int>(r, "IdUsuario"),
+                UserName = Get<string>(r, "Usuario"),
                 Name = Get<string>(r, "Nombre"),
                 LastName = Get<string>(r, "Apellido"),
                 Email = Get<string>(r, "Mail"),
-                UserName = Get<string>(r, "Usuario"),
-                PasswordHash = Get<string>(r, "PasswordHash"),
-                PasswordSalt = Get<string>(r, "PasswordSalt"),
-                PasswordIterations = Get<int>(r, "PasswordIterations", 0),
-                Tries = Get<int>(r, "NroIntentos", 0),
                 Documento = Get<string>(r, "Documento"),
-                EstadoUsuarioId = Get<int>(r, "IdEstado"),
-                IdiomaId = Get<int?>(r, "IdIdioma"),
-                IdiomaNombre = "—",
-                Permisos = new List<BE.Permiso>()
+
+                EstadoUsuarioId = GetFlex<int>(r, 0, "EstadoUsuarioId", "IdEstado"),
+                IdiomaId = GetFlex<int?>(r, null, "IdIdioma", "IdiomaId"),
+
+                Tries = Get<int>(r, "NroIntentos"),
+
+                // <- clave: asignar byte[] directamente, nada de Base64 aquí
+                PasswordHash = hashBytes,
+                PasswordSalt = saltBytes,
+                PasswordIterations = Get<int>(r, "PasswordIterations"),
+
+                DVH = Get<string>(r, "DVH"),
+                UltimoLoginUtc = Get<DateTime?>(r, "UltimoLoginUtc"),
+                BloqueadoHastaUtc = Get<DateTime?>(r, "BloqueadoHastaUtc"),
+
+                DebeCambiarContraseña = Get<bool>(r, "DebeCambiarContrasena", false)
             };
-
-            if (u.IdiomaId.HasValue)
-            {
-                var idioma = DAL.IdiomaDao.GetInstance().GetById(u.IdiomaId.Value);
-                u.IdiomaNombre = idioma?.Name ?? "—";
-            }
-
-            var permisosUsuario = DAL.PatenteDao.GetInstance().GetPatentesUsuario(u.Id);
-            var familiasUsuario = DAL.FamiliaDao.GetInstance().GetFamiliasUsuario(u.Id);
-
-            foreach (var fam in familiasUsuario)
-                foreach (var perm in fam.Permisos)
-                    if (!permisosUsuario.Any(p => p.Id == perm.Id))
-                        permisosUsuario.Add(perm);
-
-            foreach (var p in permisosUsuario) u.Permisos.Add(p);
 
             return u;
         }
 
-        public List<BE.Usuario> Map(DataTable dt)
-        {
-            var list = new List<BE.Usuario>();
-            if (dt == null || dt.Rows.Count == 0) return list;
+        // ========= helpers =========
 
-            foreach (DataRow r in dt.Rows)
+        private static bool HasCol(DataRow r, string col)
+            => r?.Table?.Columns?.Contains(col) == true;
+
+        private static T ConvertTo<T>(object v, T def = default)
+        {
+            if (v == null || v == DBNull.Value) return def;
+
+            var t = typeof(T);
+            var underlying = Nullable.GetUnderlyingType(t);
+            if (underlying != null)
             {
-                var u = new BE.Usuario
-                {
-                    Id = Get<int>(r, "IdUsuario"),
-                    Name = Get<string>(r, "Nombre"),
-                    LastName = Get<string>(r, "Apellido"),
-                    Email = Get<string>(r, "Mail"),
-                    UserName = Get<string>(r, "Usuario"),
-                    PasswordHash = Get<string>(r, "PasswordHash"),
-                    PasswordSalt = Get<string>(r, "PasswordSalt"),
-                    PasswordIterations = Get<int>(r, "PasswordIterations", 0),
-                    Tries = Get<int>(r, "NroIntentos", 0),
-                    Documento = Get<string>(r, "Documento"),
-                    EstadoUsuarioId = Get<int>(r, "IdEstado"),
-                    IdiomaId = Get<int?>(r, "IdIdioma"),
-                    IdiomaNombre = "—",
-                    Permisos = new List<BE.Permiso>()
-                };
-
-                if (u.IdiomaId.HasValue)
-                {
-                    var idioma = DAL.IdiomaDao.GetInstance().GetById(u.IdiomaId.Value);
-                    u.IdiomaNombre = idioma?.Name ?? "—";
-                }
-                var permisosUsuario = DAL.PatenteDao.GetInstance().GetPatentesUsuario(u.Id);
-                var familiasUsuario = DAL.FamiliaDao.GetInstance().GetFamiliasUsuario(u.Id);
-
-                foreach (var fam in familiasUsuario)
-                    foreach (var perm in fam.Permisos)
-                        if (!permisosUsuario.Any(p => p.Id == perm.Id))
-                            permisosUsuario.Add(perm);
-
-                foreach (var p in permisosUsuario) u.Permisos.Add(p);
-
-                list.Add(u);
+                return (T)System.Convert.ChangeType(v, underlying);
             }
-
-            return list;
+            return (T)System.Convert.ChangeType(v, t);
         }
-        private static bool Has(DataRow r, string c) => r.Table.Columns.Contains(c);
-        private static T Get<T>(DataRow r, string c, T def = default)
+
+        private static T Get<T>(DataRow r, string col, T def = default)
         {
-            if (!Has(r, c) || r[c] == DBNull.Value) return def;
-            return (T)Convert.ChangeType(r[c], typeof(T));
+            if (!HasCol(r, col)) return def;
+            return ConvertTo<T>(r[col], def);
+        }
+
+        private static T GetFlex<T>(DataRow r, T def, params string[] cols)
+        {
+            foreach (var c in cols)
+            {
+                if (HasCol(r, c))
+                {
+                    var v = r[c];
+                    if (v != DBNull.Value) return ConvertTo<T>(v, def);
+                }
+            }
+            return def;
+        }
+
+        private static byte[] GetBytes(DataRow r, string col)
+        {
+            if (!HasCol(r, col)) return null;
+            return r[col] == DBNull.Value ? null : (byte[])r[col];
         }
     }
 }

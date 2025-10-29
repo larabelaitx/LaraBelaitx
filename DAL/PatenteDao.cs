@@ -1,107 +1,162 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.SqlClient;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using DAL.Mappers;
-using Services;
 using BE;
 
 namespace DAL
 {
     public class PatenteDao : ICRUD<Permiso>
     {
-        private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Crypto.Decript(FileHelper.GetInstance(configFilePath).ReadFile());
-
+        // Singleton
         private static PatenteDao _instance;
-        
-        //Singleton
-        public static PatenteDao GetInstance()
-        {
-            if (_instance == null) _instance = new PatenteDao();
-            return _instance;
-        }
+        public static PatenteDao GetInstance() => _instance ?? (_instance = new PatenteDao());
+        private PatenteDao() { }
 
-        public bool Add(Permiso alta) { throw new NotImplementedException(); }
-        public bool Delete(Permiso delete) { throw new NotImplementedException(); }
-        public bool Update(Permiso update) { throw new NotImplementedException(); }
+        // ------------------ Lecturas ------------------
 
         public HashSet<Permiso> GetAll()
         {
-            const string SelectAll = "SELECT IdPatente, Nombre FROM Patente";
-            return MPPatente.GetInstance().MapPatentes(SqlHelpers.GetInstance(_connString).GetDataTable(SelectAll));
+            const string sql = "SELECT IdPatente, Nombre FROM Patente";
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
+            using (var da = new SqlDataAdapter(cmd))
+            {
+                var dt = new DataTable();
+                da.Fill(dt);
+                return MPPatente.GetInstance().MapPatentes(dt);
+            }
         }
+
         public Permiso GetById(int idPatente)
         {
             const string sql = "SELECT IdPatente, Nombre FROM Patente WHERE IdPatente = @id";
-            var ps = new List<SqlParameter> { new SqlParameter("@id", idPatente) };
-            return MPPatente.GetInstance().Map(SqlHelpers.GetInstance(_connString).GetDataTable(sql, ps));
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
+            {
+                cmd.Parameters.AddWithValue("@id", idPatente);
+                using (var da = new SqlDataAdapter(cmd))
+                {
+                    var dt = new DataTable();
+                    da.Fill(dt);
+                    return MPPatente.GetInstance().Map(dt);
+                }
+            }
         }
 
-        public HashSet<BE.Permiso> GetPatentesUsuario(int idUsuario)
+        public HashSet<Permiso> GetPatentesUsuario(int idUsuario)
         {
-            const string SelectJoin = @"SELECT P.* 
-                                        FROM Patente AS P 
-                                        INNER JOIN UsuarioPatente AS UP ON P.IdPatente = UP.IdPatente 
-                                        WHERE UP.IdUsuario = @idUsuario";
-            var parameters = new List<SqlParameter> { new SqlParameter("@idUsuario", idUsuario) };
-            return MPPatente.GetInstance().MapPatentes(SqlHelpers.GetInstance(_connString).GetDataTable(SelectJoin, parameters));
+            const string sql = @"
+                SELECT P.IdPatente, P.Nombre
+                FROM Patente AS P 
+                INNER JOIN UsuarioPatente AS UP ON P.IdPatente = UP.IdPatente 
+                WHERE UP.IdUsuario = @u";
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
+            {
+                cmd.Parameters.AddWithValue("@u", idUsuario);
+                using (var da = new SqlDataAdapter(cmd))
+                {
+                    var dt = new DataTable();
+                    da.Fill(dt);
+                    return MPPatente.GetInstance().MapPatentes(dt);
+                }
+            }
         }
 
-        public HashSet<BE.Permiso> GetPatentesFamilia(int idFamilia)
+        public HashSet<Permiso> GetPatentesFamilia(int idFamilia)
         {
-            const string SelectJoin = @"SELECT P.* 
-                                        FROM Patente AS P 
-                                        INNER JOIN FamiliaPatente AS FP ON P.IdPatente = FP.IdPatente 
-                                        WHERE FP.IdFamilia = @IdFam";
-            var parameters = new List<SqlParameter> { new SqlParameter("@IdFam", idFamilia) };
-            return MPPatente.GetInstance().MapPatentes(SqlHelpers.GetInstance(_connString).GetDataTable(SelectJoin, parameters));
+            const string sql = @"
+                SELECT P.IdPatente, P.Nombre
+                FROM Patente AS P 
+                INNER JOIN FamiliaPatente AS FP ON P.IdPatente = FP.IdPatente 
+                WHERE FP.IdFamilia = @f";
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
+            {
+                cmd.Parameters.AddWithValue("@f", idFamilia);
+                using (var da = new SqlDataAdapter(cmd))
+                {
+                    var dt = new DataTable();
+                    da.Fill(dt);
+                    return MPPatente.GetInstance().MapPatentes(dt);
+                }
+            }
         }
 
-        private int GetCountUsuarioPatentes(int idPatente)
+        public HashSet<Permiso> GetBySector(int sector)
         {
-            const string sql = "SELECT COUNT(*) FROM UsuarioPatente WHERE IdPatente = @idPatente";
-            var parameters = new List<SqlParameter> { new SqlParameter("@idPatente", idPatente) };
-            return (int)SqlHelpers.GetInstance(_connString).ExecuteScalar(sql, parameters);
+            // Si tenés columna Sector en Patente, filtrá; si no, devolvé todo.
+            // const string sql = "SELECT IdPatente, Nombre, Sector FROM Patente WHERE Sector=@s";
+            const string sql = "SELECT IdPatente, Nombre FROM Patente";
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
+            {
+                cmd.Parameters.AddWithValue("@s", sector);
+                using (var da = new SqlDataAdapter(cmd))
+                {
+                    var dt = new DataTable();
+                    da.Fill(dt);
+                    return MPPatente.GetInstance().MapPatentes(dt);
+                }
+            }
         }
-        private int GetCountFamiliasPatente(int idPatente)
-        {
-            const string sql = "SELECT COUNT(*) FROM FamiliaPatente WHERE IdPatente = @idPatente";
-            var ps = new List<SqlParameter> { new SqlParameter("@idPatente", idPatente) };
-            return (int)SqlHelpers.GetInstance(_connString).ExecuteScalar(sql, ps);
-        }
+
+        // ------------------ Relaciones / util ------------------
 
         public bool DeletePatenteFamilia(int idFamilia)
         {
-            bool result = false;
-            const string sql = "DELETE FROM FamiliaPatente WHERE IdFamilia = @IdFamilia";
-            var ps = new List<SqlParameter> { new SqlParameter("@IdFamilia", idFamilia) };
-            try
+            const string sql = "DELETE FROM FamiliaPatente WHERE IdFamilia = @f";
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
             {
-                if (SqlHelpers.GetInstance(_connString).ExecuteQuery(sql, ps) > 0) result = true;
+                cmd.Parameters.AddWithValue("@f", idFamilia);
+                return cmd.ExecuteNonQuery() > 0;
             }
-            catch (Exception e) { throw e; }
-            return result;
         }
+
         public bool CheckPatenteAsing(int idPatente)
         {
             int familias = GetCountFamiliasPatente(idPatente);
             int usuarios = GetCountUsuarioPatentes(idPatente);
-            return (familias + usuarios) > 1;
+            // Si la patente está asignada al menos a un lugar (familia/usuario) => true
+            return (familias + usuarios) > 0;
         }
 
-        List<Permiso> ICRUD<Permiso>.GetAll() { throw new NotImplementedException(); }
-        public HashSet<BE.Permiso> GetBySector(int sector)
+        private int GetCountUsuarioPatentes(int idPatente)
         {
-            // Si Patente tiene columna Sector en DB, descomenta la condición
-            // const string sql = "SELECT IdPatente, Nombre, Sector FROM Patente WHERE Sector=@s";
-            const string sql = "SELECT IdPatente, Nombre FROM Patente"; // fallback sin filtro si no tenés la columna
-            var ps = new List<SqlParameter> { new SqlParameter("@s", sector) };
-            var dt = Services.SqlHelpers.GetInstance(_connString).GetDataTable(sql, ps);
-            return Mappers.MPPatente.GetInstance().MapPatentes(dt);
+            const string sql = "SELECT COUNT(*) FROM UsuarioPatente WHERE IdPatente = @p";
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
+            {
+                cmd.Parameters.AddWithValue("@p", idPatente);
+                return Convert.ToInt32(cmd.ExecuteScalar());
+            }
         }
+
+        private int GetCountFamiliasPatente(int idPatente)
+        {
+            const string sql = "SELECT COUNT(*) FROM FamiliaPatente WHERE IdPatente = @p";
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
+            {
+                cmd.Parameters.AddWithValue("@p", idPatente);
+                return Convert.ToInt32(cmd.ExecuteScalar());
+            }
+        }
+
+        // ------------------ ICRUD<Permiso> ------------------
+        // Si NO usás altas/bajas/modificaciones de Patentes desde la app,
+        // dejamos NotImplemented para no introducir lógica que no usás.
+
+        bool ICRUD<Permiso>.Add(Permiso alta) => throw new NotImplementedException();
+        bool ICRUD<Permiso>.Update(Permiso update) => throw new NotImplementedException();
+        bool ICRUD<Permiso>.Delete(Permiso delete) => throw new NotImplementedException();
+
+        // La interfaz pide List<Permiso>. Convertimos el HashSet a List para cumplir la firma.
+        List<Permiso> ICRUD<Permiso>.GetAll() => new List<Permiso>(GetAll());
+
+        Permiso ICRUD<Permiso>.GetById(int id) => GetById(id);
     }
 }

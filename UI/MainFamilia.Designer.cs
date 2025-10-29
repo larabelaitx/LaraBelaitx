@@ -32,12 +32,13 @@
             this.label2 = new System.Windows.Forms.Label();
             this.btnVolver = new System.Windows.Forms.Button();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
+            this.btnAgregar = new Krypton.Toolkit.KryptonButton();
+            this.kryptonComboBox1 = new Krypton.Toolkit.KryptonComboBox();
+            this.txtFamilia = new Krypton.Toolkit.KryptonTextBox();
             this.btnLimpiar = new Krypton.Toolkit.KryptonButton();
             this.label3 = new System.Windows.Forms.Label();
             this.btnAplicar = new Krypton.Toolkit.KryptonButton();
             this.label1 = new System.Windows.Forms.Label();
-            this.txtFamilia = new Krypton.Toolkit.KryptonTextBox();
-            this.kryptonComboBox1 = new Krypton.Toolkit.KryptonComboBox();
             this.kryptonDataGridView1 = new Krypton.Toolkit.KryptonDataGridView();
             this.panel1.SuspendLayout();
             this.groupBox1.SuspendLayout();
@@ -79,6 +80,7 @@
             // groupBox1
             // 
             this.groupBox1.BackColor = System.Drawing.SystemColors.ActiveCaption;
+            this.groupBox1.Controls.Add(this.btnAgregar);
             this.groupBox1.Controls.Add(this.kryptonComboBox1);
             this.groupBox1.Controls.Add(this.txtFamilia);
             this.groupBox1.Controls.Add(this.btnLimpiar);
@@ -93,9 +95,35 @@
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Filtros";
             // 
+            // btnAgregar
+            // 
+            this.btnAgregar.Location = new System.Drawing.Point(923, 29);
+            this.btnAgregar.Name = "btnAgregar";
+            this.btnAgregar.Size = new System.Drawing.Size(155, 29);
+            this.btnAgregar.TabIndex = 29;
+            this.btnAgregar.Values.DropDownArrowColor = System.Drawing.Color.Empty;
+            this.btnAgregar.Values.Text = "Agregar";
+            // 
+            // kryptonComboBox1
+            // 
+            this.kryptonComboBox1.DropDownWidth = 243;
+            this.kryptonComboBox1.Location = new System.Drawing.Point(469, 43);
+            this.kryptonComboBox1.Name = "kryptonComboBox1";
+            this.kryptonComboBox1.Size = new System.Drawing.Size(243, 26);
+            this.kryptonComboBox1.StateCommon.ComboBox.Content.TextH = Krypton.Toolkit.PaletteRelativeAlign.Near;
+            this.kryptonComboBox1.TabIndex = 28;
+            this.kryptonComboBox1.Text = "kryptonComboBox1";
+            // 
+            // txtFamilia
+            // 
+            this.txtFamilia.Location = new System.Drawing.Point(104, 42);
+            this.txtFamilia.Name = "txtFamilia";
+            this.txtFamilia.Size = new System.Drawing.Size(243, 27);
+            this.txtFamilia.TabIndex = 27;
+            // 
             // btnLimpiar
             // 
-            this.btnLimpiar.Location = new System.Drawing.Point(909, 64);
+            this.btnLimpiar.Location = new System.Drawing.Point(923, 64);
             this.btnLimpiar.Name = "btnLimpiar";
             this.btnLimpiar.Size = new System.Drawing.Size(155, 29);
             this.btnLimpiar.TabIndex = 26;
@@ -106,7 +134,7 @@
             // 
             this.label3.AutoSize = true;
             this.label3.Font = new System.Drawing.Font("Segoe UI Semibold", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label3.Location = new System.Drawing.Point(438, 41);
+            this.label3.Location = new System.Drawing.Point(390, 41);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(73, 28);
             this.label3.TabIndex = 19;
@@ -114,7 +142,7 @@
             // 
             // btnAplicar
             // 
-            this.btnAplicar.Location = new System.Drawing.Point(909, 25);
+            this.btnAplicar.Location = new System.Drawing.Point(739, 29);
             this.btnAplicar.Name = "btnAplicar";
             this.btnAplicar.Size = new System.Drawing.Size(155, 29);
             this.btnAplicar.TabIndex = 18;
@@ -131,23 +159,6 @@
             this.label1.TabIndex = 12;
             this.label1.Text = "Nombre:";
             // 
-            // txtFamilia
-            // 
-            this.txtFamilia.Location = new System.Drawing.Point(104, 42);
-            this.txtFamilia.Name = "txtFamilia";
-            this.txtFamilia.Size = new System.Drawing.Size(243, 27);
-            this.txtFamilia.TabIndex = 27;
-            // 
-            // kryptonComboBox1
-            // 
-            this.kryptonComboBox1.DropDownWidth = 243;
-            this.kryptonComboBox1.Location = new System.Drawing.Point(512, 43);
-            this.kryptonComboBox1.Name = "kryptonComboBox1";
-            this.kryptonComboBox1.Size = new System.Drawing.Size(243, 26);
-            this.kryptonComboBox1.StateCommon.ComboBox.Content.TextH = Krypton.Toolkit.PaletteRelativeAlign.Near;
-            this.kryptonComboBox1.TabIndex = 28;
-            this.kryptonComboBox1.Text = "kryptonComboBox1";
-            // 
             // kryptonDataGridView1
             // 
             this.kryptonDataGridView1.BorderStyle = System.Windows.Forms.BorderStyle.None;
@@ -163,7 +174,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1096, 472);
+            this.ClientSize = new System.Drawing.Size(1100, 458);
             this.Controls.Add(this.kryptonDataGridView1);
             this.Controls.Add(this.groupBox1);
             this.Controls.Add(this.panel1);
@@ -193,5 +204,6 @@
         private Krypton.Toolkit.KryptonComboBox kryptonComboBox1;
         private Krypton.Toolkit.KryptonTextBox txtFamilia;
         private Krypton.Toolkit.KryptonDataGridView kryptonDataGridView1;
+        private Krypton.Toolkit.KryptonButton btnAgregar;
     }
 }

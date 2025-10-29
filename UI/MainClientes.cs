@@ -103,6 +103,10 @@ namespace UI
         /// <summary>
         /// Si no hay filtros, trae todo. Si hay alguno, filtra.
         /// </summary>
+        /// <summary>
+        /// Si no hay filtros, trae todo. Si hay alguno, filtra.
+        /// Ordena por Apellido, luego Nombre antes de bindear.
+        /// </summary>
         private void ApplySearch()
         {
             string nombre = (txtNombre.Text ?? "").Trim();
@@ -110,18 +114,18 @@ namespace UI
             string documento = (txtDocumento.Text ?? "").Trim();
 
             string nomApe = string.Join(" ", new[] { nombre, apellido }
-                                    .Where(s => !string.IsNullOrWhiteSpace(s))).Trim();
-
-            List<Cliente> datos = !string.IsNullOrEmpty(nomApe) || !string.IsNullOrEmpty(documento)
-                ? _clienteService.Buscar(nomApe: nomApe, doc: documento)
-                : _clienteService.GetAll();  
-
+                                        .Where(s => !string.IsNullOrWhiteSpace(s))).Trim();
+            List<Cliente> datos = (!string.IsNullOrEmpty(nomApe) || !string.IsNullOrEmpty(documento))
+                ? (_clienteService.Buscar(nomApe: nomApe, doc: documento) ?? new List<Cliente>())
+                : (_clienteService.GetAll() ?? new List<Cliente>());
+            var ordenados = datos
+                .OrderBy(c => c.Apellido ?? string.Empty)
+                .ThenBy(c => c.Nombre ?? string.Empty)
+                .ToList();
             dgvClientes.DataSource = null;
-            dgvClientes.DataSource = datos;
-
-            if (dgvClientes.Columns.Contains("colApellido"))
-                dgvClientes.Sort(dgvClientes.Columns["colApellido"], ListSortDirection.Ascending);
+            dgvClientes.DataSource = new BindingList<Cliente>(ordenados);
         }
+
         private void btnLimpiar_Click(object sender, EventArgs e)
         {
             ClearFilters();

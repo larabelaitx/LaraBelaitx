@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using BE;
+using BLL;
 using BLL.Services;
 using Krypton.Toolkit;
 
@@ -89,7 +90,9 @@ namespace UI
 
             var ordenar = cboOrden.SelectedItem?.ToString() ?? "Fecha DESC";
 
-            var (rows, total) = _svc.Buscar(desde, hasta, usuario, _page, PageSize, ordenar);
+            var res = _svc.Search(desde, hasta, usuario, _page, PageSize, ordenar);
+            var rows = res.Rows;
+            var total = res.Total;
 
             _current = rows;
             grdBitacora.DataSource = rows;

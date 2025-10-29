@@ -1,295 +1,310 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Data;
 using System.Data.SqlClient;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using DAL.Mappers;
-using Services;
+using System.Collections.Generic;
 using BE;
 
 namespace DAL
 {
-    public class FamiliaDao : ICRUD<BE.Familia>
+    public sealed class FamiliaDao
     {
+        // ------------------ Singleton ------------------
+        private static FamiliaDao _inst;
+        public static FamiliaDao GetInstance() => _inst ?? (_inst = new FamiliaDao());
+        private FamiliaDao() { }
 
-        private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Crypto.Decript(FileHelper.GetInstance(configFilePath).ReadFile());
+        // ----------------------- CRUD -----------------------
 
-        #region Singleton
-        private static FamiliaDao _instance;
-        public static FamiliaDao GetInstance()
-        {
-            if (_instance == null)
-            {
-                _instance = new FamiliaDao();
-            }
-
-            return _instance;
-        }
-        #endregion
-
-        #region CRUD Familia
-        public bool Add(Familia familia)
-        {
-            bool returnValue = false;
-            string queryInsert = "INSERT INTO Familia (Nombre, Descripcion) VALUES (@Nombre, @Descripcion)";
-            try
-            {
-                if (familia != null)
-                {
-                    List<SqlParameter> sqlParams = new List<SqlParameter>
-                    {
-                        new SqlParameter("@Nombre", familia.Name),
-                        new SqlParameter("@Descripcion", familia.Descripcion)
-                    };
-                    if (Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(queryInsert, sqlParams) > 0)
-                    {
-                        returnValue = true;
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                throw e;
-            }
-            return returnValue;
-        }
-        public bool Delete(Familia familia)
-        {
-            const string sqlDelFamilia = "DELETE FROM Familia WHERE IdFamilia = @IdFamilia";
-            var sqlParams = new List<SqlParameter> { new SqlParameter("@IdFamilia", familia.Id) };
-
-            try
-            {
-                List<BE.Usuario> usuariosFamilia = GetUsuariosFamilias(familia.Id);
-                HashSet<BE.Permiso> patentesFamilia = PatenteDao.GetInstance().GetPatentesFamilia(familia.Id);
-
-                foreach (var patente in patentesFamilia)
-                {
-                    if (!PatenteDao.GetInstance().CheckPatenteAsing(patente.Id))
-                        throw new Exception("No se puede eliminar la familia: quedaría patente sin asignar.");
-                }
-                if (usuariosFamilia.Count > 0)
-                {
-                    UsuarioDao.GetInstance().DeleteUsuarioFamilia(familia.Id);
-                    DVVDao.GetInstance().AddUpdateDVV(new DVV
-                    {
-                        tabla = "UsuarioFamilia",
-                        dvv = DVVDao.GetInstance().CalculateDVV("UsuarioFamilia")
-                    });
-                }
-                if (patentesFamilia.Count > 0)
-                {
-                    PatenteDao.GetInstance().DeletePatenteFamilia(familia.Id);
-                    DVVDao.GetInstance().AddUpdateDVV(new DVV
-                    {
-                        tabla = "FamiliaPatente",
-                        dvv = DVVDao.GetInstance().CalculateDVV("FamiliaPatente")
-                    });
-                }
-                Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(sqlDelFamilia, sqlParams);
-
-                DVVDao.GetInstance().AddUpdateDVV(new DVV
-                {
-                    tabla = "Familia",
-                    dvv = DVVDao.GetInstance().CalculateDVV("Familia")
-                });
-
-                return true;
-            }
-            catch
-            {
-                throw;
-            }
-        }
         public List<Familia> GetAll()
         {
-            string SelectAll = "SELECT IdFamilia, Nombre, Descripcion FROM Familia";
-            return Mappers.MPFamilia.GetInstance().MapFamilias(Services.SqlHelpers.GetInstance(_connString).GetDataTable(SelectAll));
-        }
-        public Familia GetById(int IdFamilia)
-        {
-            string SelectId = "SELECT IdFamilia, Nombre, Descripcion FROM Familia WHERE IdFamilia = @IdFamilia";
-            List<SqlParameter> sqlParams = new List<SqlParameter>
-            {
-                new SqlParameter("@IdFamilia", IdFamilia)
-            };
+            const string sql = "SELECT IdFamilia, Nombre, Descripcion, Activa FROM Familia";
+            var list = new List<Familia>();
 
-            return Mappers.MPFamilia.GetInstance().Map(Services.SqlHelpers.GetInstance(_connString).GetDataTable(SelectId, sqlParams));
-        }
-        public bool Update(Familia familia)
-        {
-            bool returnValue = false;
-            string queryUpdate = "UPDATE Familia SET Nombre = @Nombre, Descripcion = @Descripcion WHERE IdFamilia = @IdFamilia";
-            try
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
+            using (var dr = cmd.ExecuteReader())
             {
-                if (familia != null)
+                while (dr.Read())
                 {
-                    List<SqlParameter> sqlParameters = new List<SqlParameter>()
+                    var fam = new Familia
                     {
-                        new SqlParameter("@IdFamilia",familia.Id),
-                        new SqlParameter("@Nombre", familia.Name),
-                        new SqlParameter("@Descripcion", familia.Descripcion)
+                        Id = dr.GetInt32(0),
+                        Name = dr.IsDBNull(1) ? null : dr.GetString(1),
+                        Descripcion = dr.IsDBNull(2) ? null : dr.GetString(2)
                     };
-                    if (SqlHelpers.GetInstance(_connString).ExecuteQuery(queryUpdate, sqlParameters) > 0)
-                    {
-                        returnValue = true;
-                    }
+
+                    bool dbActiva = !dr.IsDBNull(3) && dr.GetBoolean(3);
+                    TrySetBool(fam, "Activa", dbActiva);
+                    TrySetBool(fam, "Activo", dbActiva);
+                    TrySetBool(fam, "IsEnabled", dbActiva);
+
+                    list.Add(fam);
                 }
-
             }
-            catch (Exception e)
-            {
-
-                throw e;
-            }
-            return returnValue;
+            return list;
         }
-        #endregion
 
-        #region GestPermisos
-        public bool AddUpdatePatente(Familia familia, Permiso patente, DVH dvh)
+        public Familia GetById(int id)
         {
-            bool result = false;
-            string queryCheckExistence = "SELECT COUNT(*) FROM FamiliaPatente WHERE IdFamilia = @idFamilia AND IdPatente = @idPatente";
-            string queryInsert = "INSERT INTO FamiliaPatente (IdFamilia,IdPatente,DVH) VALUES (@idFamilia, @idPatente, @dvh)";
-            string queryUpdate = "UPDATE FamiliaPatente SET DVH = @dvh WHERE IdFamilia = @idFamilia AND IdPatente = @idPatente";
-            try
+            const string sql = "SELECT IdFamilia, Nombre, Descripcion, Activa FROM Familia WHERE IdFamilia = @id";
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
             {
+                cmd.Parameters.AddWithValue("@id", id);
+                using (var dr = cmd.ExecuteReader())
+                {
+                    if (!dr.Read()) return null;
 
-                List<SqlParameter> sqlParams = new List<SqlParameter>
-                {
-                    new SqlParameter("@idFamilia", familia.Id),
-                    new SqlParameter("@idPatente", patente.Id),
-                    new SqlParameter("@dvh", dvh.dvh)
-                };
-                int count = (int)Services.SqlHelpers.GetInstance(_connString).ExecuteScalar(queryCheckExistence, new List<SqlParameter> { new SqlParameter("@idFamilia", familia.Id), new SqlParameter("@idPatente", patente.Id) });
-                if (count > 0)
-                {
-                    if (Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(queryUpdate, sqlParams) > 0)
+                    var fam = new Familia
                     {
-                        result = true;
-                        DVV dvv = new DVV()
-                        {
-                            tabla = "FamiliaPatente",
-                            dvv = DVVDao.GetInstance().CalculateDVV("FamiliaPatente")
-                        };
-                        DVVDao.GetInstance().AddUpdateDVV(dvv);
-                    }
-                }
-                else
-                {
-                    if (Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(queryInsert, sqlParams) > 0)
-                    {
-                        result = true;
-                        DVV dvv = new DVV()
-                        {
-                            tabla = "FamiliaPatente",
-                            dvv = DVVDao.GetInstance().CalculateDVV("FamiliaPatente")
-                        };
-                        DVVDao.GetInstance().AddUpdateDVV(dvv);
-                    }
+                        Id = dr.GetInt32(0),
+                        Name = dr.IsDBNull(1) ? null : dr.GetString(1),
+                        Descripcion = dr.IsDBNull(2) ? null : dr.GetString(2)
+                    };
+
+                    bool dbActiva = !dr.IsDBNull(3) && dr.GetBoolean(3);
+                    TrySetBool(fam, "Activa", dbActiva);
+                    TrySetBool(fam, "Activo", dbActiva);
+                    TrySetBool(fam, "IsEnabled", dbActiva);
+
+                    return fam;
                 }
             }
-            catch (Exception e)
-            {
-
-                throw e;
-            }
-            return result;
         }
-        public bool DelPatente(Familia familia, Permiso patente)
-        {
-            bool result = false;
 
-            if (!PatenteDao.GetInstance().CheckPatenteAsing(patente.Id))
+        public int Add(Familia f)
+        {
+            if (f == null) throw new ArgumentNullException(nameof(f));
+
+            const string ins = @"
+                INSERT INTO Familia (Nombre, Descripcion, Activa, DVH)
+                VALUES (@n, @d, @a, @dvh);
+                SELECT CAST(SCOPE_IDENTITY() AS INT);";
+
+            using (var cn = ConnectionFactory.Open())
+            using (var tx = cn.BeginTransaction())
             {
-                throw new Exception(message: "No se puede eliminar la patente de la Familia, quedaria sin asignar");
-            }
-            else
-            {
-                string queryDelUsuarioFamilia = "DELETE FROM FamiliaPatente WHERE IdFamilia = @IdFamilia and IdPatente = @IdPatente";
-                List<SqlParameter> sqlParams = new List<SqlParameter>
-                {
-                    new SqlParameter("@IdFamilia", familia.Id),
-                    new SqlParameter("@IdPatente", patente.Id)
-                };
                 try
                 {
-                    if (Services.SqlHelpers.GetInstance(_connString).ExecuteQuery(queryDelUsuarioFamilia, sqlParams) > 0)
+                    bool activa = GetBool(f, defaultValue: true);
+                    string fila = $"{0}|{f.Name}|{f.Descripcion}|{(activa ? 1 : 0)}";
+                    string dvh = Services.DV.GetDV(fila);
+
+                    int nuevoId;
+                    using (var cmd = new SqlCommand(ins, cn, tx))
                     {
-                        result = true;
-                        DVV dvv = new DVV()
+                        cmd.Parameters.AddWithValue("@n", (object)f.Name ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("@d", (object)f.Descripcion ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("@a", activa);
+                        cmd.Parameters.AddWithValue("@dvh", (object)dvh ?? DBNull.Value);
+                        nuevoId = Convert.ToInt32(cmd.ExecuteScalar());
+                    }
+
+                    var dvv = DAL.DVVDao.GetInstance().CalculateDVV("Familia");
+                    UpsertDVV_tx(cn, tx, "Familia", dvv);
+
+                    tx.Commit();
+                    return nuevoId;
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        public bool Update(Familia f)
+        {
+            if (f == null) throw new ArgumentNullException(nameof(f));
+
+            const string up = @"
+                UPDATE Familia
+                   SET Nombre = @n,
+                       Descripcion = @d,
+                       Activa = @a,
+                       DVH = @dvh
+                 WHERE IdFamilia = @id";
+
+            using (var cn = ConnectionFactory.Open())
+            using (var tx = cn.BeginTransaction())
+            {
+                try
+                {
+                    bool activa = GetBool(f, defaultValue: true);
+                    string fila = $"{f.Id}|{f.Name}|{f.Descripcion}|{(activa ? 1 : 0)}";
+                    string dvh = Services.DV.GetDV(fila);
+
+                    using (var cmd = new SqlCommand(up, cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@id", f.Id);
+                        cmd.Parameters.AddWithValue("@n", (object)f.Name ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("@d", (object)f.Descripcion ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("@a", activa);
+                        cmd.Parameters.AddWithValue("@dvh", (object)dvh ?? DBNull.Value);
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    var dvv = DAL.DVVDao.GetInstance().CalculateDVV("Familia");
+                    UpsertDVV_tx(cn, tx, "Familia", dvv);
+
+                    tx.Commit();
+                    return true;
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        public int Delete(Familia f)
+        {
+            if (f == null) throw new ArgumentNullException(nameof(f));
+
+            const string sql = "DELETE FROM Familia WHERE IdFamilia = @id";
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
+            {
+                cmd.Parameters.AddWithValue("@id", f.Id);
+                return cmd.ExecuteNonQuery();
+            }
+        }
+
+        // ------------------- Relaciones --------------------
+
+        public List<Familia> GetFamiliasUsuario(int idUsuario)
+        {
+            const string sql = @"
+                SELECT f.IdFamilia, f.Nombre, f.Descripcion, f.Activa
+                FROM UsuarioFamilia uf
+                INNER JOIN Familia f ON f.IdFamilia = uf.IdFamilia
+                WHERE uf.IdUsuario = @u";
+
+            var list = new List<Familia>();
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
+            {
+                cmd.Parameters.AddWithValue("@u", idUsuario);
+                using (var dr = cmd.ExecuteReader())
+                {
+                    while (dr.Read())
+                    {
+                        var fam = new Familia
                         {
-                            tabla = "FamiliaPatente",
-                            dvv = DVVDao.GetInstance().CalculateDVV("FamiliaPatente")
+                            Id = dr.GetInt32(0),
+                            Name = dr.IsDBNull(1) ? null : dr.GetString(1),
+                            Descripcion = dr.IsDBNull(2) ? null : dr.GetString(2)
                         };
-                        DVVDao.GetInstance().AddUpdateDVV(dvv);
+                        bool dbActiva = !dr.IsDBNull(3) && dr.GetBoolean(3);
+                        TrySetBool(fam, "Activa", dbActiva);
+                        TrySetBool(fam, "Activo", dbActiva);
+                        TrySetBool(fam, "IsEnabled", dbActiva);
+
+                        list.Add(fam);
                     }
                 }
-                catch (Exception e)
-                {
+            }
+            return list;
+        }
 
-                    throw e;
+        // Compatibilidad: a veces llaman con objeto Familia
+        public int SetPatentes(Familia familia, IEnumerable<int> patentesIds)
+        {
+            if (familia == null) throw new ArgumentNullException(nameof(familia));
+            return SetPatentesDeFamilia(familia.Id, patentesIds);
+        }
+
+        // …y a veces con id
+        public int SetPatentes(int idFamilia, IEnumerable<int> patentesIds)
+            => SetPatentesDeFamilia(idFamilia, patentesIds);
+
+        public int SetPatentesDeFamilia(int idFamilia, IEnumerable<int> patentesIds)
+        {
+            int affected = 0;
+
+            using (var cn = ConnectionFactory.Open())
+            using (var tx = cn.BeginTransaction())
+            {
+                try
+                {
+                    // borrar actuales
+                    using (var del = new SqlCommand("DELETE FROM FamiliaPatente WHERE IdFamilia = @f", cn, tx))
+                    {
+                        del.Parameters.AddWithValue("@f", idFamilia);
+                        affected += del.ExecuteNonQuery();
+                    }
+
+                    // insertar nuevos
+                    if (patentesIds != null)
+                    {
+                        const string ins = "INSERT INTO FamiliaPatente (IdFamilia, IdPatente) VALUES (@f, @p)";
+                        foreach (var idPat in patentesIds)
+                        {
+                            using (var cmd = new SqlCommand(ins, cn, tx))
+                            {
+                                cmd.Parameters.AddWithValue("@f", idFamilia);
+                                cmd.Parameters.AddWithValue("@p", idPat);
+                                affected += cmd.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
+                    var dvv = DAL.DVVDao.GetInstance().CalculateDVV("FamiliaPatente");
+                    UpsertDVV_tx(cn, tx, "FamiliaPatente", dvv);
+
+                    tx.Commit();
+                    return affected;
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
                 }
             }
-
-            return result;
         }
-        public List<Familia> GetFamiliasUsuario(int IdUsuario)
+
+        // ---------------------- Helpers --------------------
+
+        private static bool GetBool(object target, bool defaultValue)
         {
-            string SelectJoin = "SELECT F.IdFamilia, Nombre, Descripcion FROM Familia F INNER JOIN UsuarioFamilia UF ON F.IdFamilia = UF.IdFamilia WHERE UF.IdUsuario = @IdUsuario";
-            List<SqlParameter> sqlParams = new List<SqlParameter>
+            if (target == null) return defaultValue;
+            foreach (var name in new[] { "Activa", "Activo", "IsEnabled" })
             {
-                new SqlParameter("@IdUsuario", IdUsuario)
-            };
-            return Mappers.MPFamilia.GetInstance().MapFamilias(Services.SqlHelpers.GetInstance(_connString).GetDataTable(SelectJoin, sqlParams));
-        }
-        public List<Usuario> GetUsuariosFamilias(int IdFamilia)
-        {
-            string SelectJoin = "SELECT U.idUsuario, U.IdEstado, U.IdIdioma, U.Usuario, U.Password, U.Nombre, U.Apellido, U.Mail, U.NroIntentos FROM Usuario as U INNER JOIN UsuarioFamilia UF ON U.IdUsuario = UF.IdUsuario WHERE UF.IdFamilia = @IdFamilia";
-            List<SqlParameter> sqlParams = new List<SqlParameter>
-            {
-                new SqlParameter("@IdFamilia", IdFamilia)
-            };
-            return Mappers.MPUsuario.GetInstance().Map(Services.SqlHelpers.GetInstance(_connString).GetDataTable(SelectJoin, sqlParams));
-        }
-        #endregion
-
-        public bool SetPatentes(int idFamilia, IEnumerable<int> idsPatentesSeleccionadas)
-        {
-            var actuales = PatenteDao.GetInstance().GetPatentesFamilia(idFamilia);
-            var actualesIds = new HashSet<int>(actuales.Select(p => p.Id));
-            var nuevasIds = new HashSet<int>(idsPatentesSeleccionadas ?? Enumerable.Empty<int>());
-
-            var altas = nuevasIds.Except(actualesIds).ToList();
-            var bajas = actualesIds.Except(nuevasIds).ToList();
-
-            foreach (var idPat in bajas)
-                if (!PatenteDao.GetInstance().CheckPatenteAsing(idPat))
-                    throw new Exception("No se puede quitar la última asignación de una patente (huérfana).");
-
-            foreach (var idAlta in altas)
-            {
-                var ok = AddUpdatePatente(new BE.Familia { Id = idFamilia }, new BE.Patente { Id = idAlta }, new BE.DVH { dvh = null });
-                if (!ok) throw new Exception("No se pudo asignar una patente a la familia.");
+                var p = target.GetType().GetProperty(name);
+                if (p != null && p.PropertyType == typeof(bool))
+                    return (bool)p.GetValue(target);
             }
+            return defaultValue;
+        }
 
-            foreach (var idBaja in bajas)
+        private static void TrySetBool(object target, string propName, bool value)
+        {
+            var p = target?.GetType().GetProperty(propName);
+            if (p != null && p.CanWrite && p.PropertyType == typeof(bool))
+                p.SetValue(target, value);
+        }
+
+        private static void UpsertDVV_tx(SqlConnection cn, SqlTransaction tx, string tabla, string dvv)
+        {
+            const string check = "SELECT COUNT(*) FROM DVV WHERE Tabla = @t";
+            using (var cmd = new SqlCommand(check, cn, tx))
             {
-                var ok = DelPatente(new BE.Familia { Id = idFamilia }, new BE.Patente { Id = idBaja });
-                if (!ok) throw new Exception("No se pudo quitar una patente de la familia.");
+                cmd.Parameters.AddWithValue("@t", tabla);
+                int c = Convert.ToInt32(cmd.ExecuteScalar());
+
+                string sql = c > 0
+                    ? "UPDATE DVV SET DVV = @d WHERE Tabla = @t"
+                    : "INSERT INTO DVV (Tabla, DVV) VALUES (@t, @d)";
+
+                using (var up = new SqlCommand(sql, cn, tx))
+                {
+                    up.Parameters.AddWithValue("@t", tabla);
+                    up.Parameters.AddWithValue("@d", (object)dvv ?? DBNull.Value);
+                    up.ExecuteNonQuery();
+                }
             }
-
-            DVVDao.GetInstance().AddUpdateDVV(new BE.DVV
-            {
-                tabla = "FamiliaPatente",
-                dvv = DVVDao.GetInstance().CalculateDVV("FamiliaPatente")
-            });
-
-            return true;
         }
     }
 }

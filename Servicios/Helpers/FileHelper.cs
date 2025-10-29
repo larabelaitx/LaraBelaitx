@@ -1,92 +1,79 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Services
 {
+    /// <summary>
+    /// Helper de archivos con Singleton compatible con el código existente.
+    /// Mantiene GetInstance(string ruta) para no romper la DAL/UI.
+    /// </summary>
     public class FileHelper
     {
         private string _path;
         private static FileHelper _instance;
+        private static readonly object _lock = new object();
 
         private FileHelper(string filePath)
         {
-
-            this._path = filePath;
-
+            _path = filePath;
         }
-        //Singleton
+
+        // === Compatibilidad: conserva el método usado por la DAL ===
         public static FileHelper GetInstance(string ruta)
         {
             if (_instance == null)
             {
-                _instance = new FileHelper(ruta);
+                lock (_lock)
+                {
+                    if (_instance == null)
+                        _instance = new FileHelper(ruta);
+                }
+            }
+            else
+            {
+                // Si cambia la ruta en tiempo de ejecución, la actualizamos.
+                _instance._path = ruta;
             }
             return _instance;
         }
 
         public string ReadFile()
         {
-
-            if (File.Exists(_path))
-            {
-
-                using (StreamReader reader = new StreamReader(_path))
-                {
-
-                    string content = reader.ReadToEnd();
-
-                    return content;
-
-                }
-
-            }
-            else
-            {
-
+            if (!File.Exists(_path))
                 throw new FileNotFoundException("No existe el archivo", _path);
 
+            using (var reader = new StreamReader(_path))
+            {
+                return reader.ReadToEnd();
             }
-
         }
-
 
         public void WriteFile(string content)
         {
-
-            using (StreamWriter writer = new StreamWriter(_path, false))
+            using (var writer = new StreamWriter(_path, false))
             {
-
                 writer.Write(content);
-
             }
-
         }
-
 
         public void AppendFile(string content)
         {
-
-            using (StreamWriter writer = new StreamWriter(_path, true))
+            using (var writer = new StreamWriter(_path, true))
             {
-
                 writer.Write(content);
-
             }
-
         }
 
-        public bool helpFile(string path)
+        /// <summary>
+        /// Abre un archivo de ayuda ubicado en /Resources/{fileName}
+        /// </summary>
+        public bool helpFile(string fileName)
         {
-            string fileName = path;
-            string rutaPDF = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", fileName);
+            string rutaPDF = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", fileName);
 
             try
             {
-                if (System.IO.File.Exists(rutaPDF))
+                if (File.Exists(rutaPDF))
                 {
                     System.Diagnostics.Process.Start(rutaPDF);
                 }
@@ -95,9 +82,9 @@ namespace Services
                     return false;
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                throw ex;
+                throw;
             }
 
             return true;

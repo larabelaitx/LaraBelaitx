@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace DAL.Mappers
 {
@@ -29,25 +26,39 @@ namespace DAL.Mappers
 
         private static BE.Cuenta MapRow(DataRow r)
         {
-            return new BE.Cuenta
+            bool Has(string c) => r.Table.Columns.Contains(c);
+            T Get<T>(string c, T def = default)
             {
-                IdCuenta = Get<int>(r, "IdCuenta"),
-                ClienteId = Get<int>(r, "ClienteId"),
-                NumeroCuenta = Get<string>(r, "NumeroCuenta"),
-                CBU = Get<string>(r, "CBU"),
-                Alias = Get<string>(r, "Alias"),
-                TipoCuenta = Get<string>(r, "TipoCuenta"),
-                Moneda = Get<string>(r, "Moneda"),
-                Saldo = Get<decimal?>(r, "Saldo") ?? 0m,
-                FechaApertura = Get<DateTime?>(r, "FechaApertura") ?? DateTime.MinValue
-            };
-        }
+                if (!Has(c) || r[c] == DBNull.Value) return def;
+                return (T)Convert.ChangeType(r[c], typeof(T));
+            }
 
-        private static bool Has(DataRow r, string c) => r.Table.Columns.Contains(c);
-        private static T Get<T>(DataRow r, string c, T def = default)
-        {
-            if (!Has(r, c) || r[c] == DBNull.Value) return def;
-            return (T)Convert.ChangeType(r[c], typeof(T));
+            var cuenta = new BE.Cuenta
+            {
+                IdCuenta = Get<int>("IdCuenta"),
+                ClienteId = Get<int>("ClienteId"),
+                NumeroCuenta = Get<string>("NumeroCuenta"),
+                CBU = Get<string>("CBU"),
+                Alias = Get<string>("Alias"),
+                TipoCuenta = Get<string>("TipoCuenta"),
+                Moneda = Get<string>("Moneda"),
+                Saldo = Get<decimal?>("Saldo") ?? 0m,
+                FechaApertura = Get<DateTime?>("FechaApertura") ?? DateTime.MinValue
+            };
+
+            if (Has("Estado"))
+            {
+                var idEstado = Get<int>("Estado");
+                cuenta.Estado = new BE.Estado { Id = idEstado, Name = Get<string>("EstadoNombre") };
+            }
+
+            if (cuenta.Cliente == null && Has("ClienteId"))
+            {
+                cuenta.Cliente = new BE.Cliente { IdCliente = cuenta.ClienteId };
+
+            }
+
+            return cuenta;
         }
     }
 }

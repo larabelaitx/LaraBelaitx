@@ -1,104 +1,120 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Services
 {
+    /// <summary>
+    /// Cifrado simétrico (AES-CBC + IV aleatorio por mensaje) y utilidades legacy.
+    /// - Reversible: Encrypt/Decrypt   (antes Encript/Decript)
+    /// - Hash (no reversible) para “huellas”: EncriptMD5 (legacy) y PasswordService (recomendado)
+    /// </summary>
     public static class Crypto
     {
-        //TODO: Actualizar o parametrizar
-        private static string publickey = "12345678";
-        private static string secretkey = "87654321";
-        public static string Encript(string enctriptar)
+        // IMPORTANTE: mover estas claves a configuración segura si es posible.
+        private const string Passphrase = "ITX-Banco-2024";         // <- cámbiala y colócala en config
+        private static readonly byte[] Salt = Encoding.UTF8.GetBytes("ITX-Salt-2024!!"); // 16+ bytes
+
+        private const int Iterations = 10000; // PBKDF2
+        private const int KeySizeBytes = 32;  // 256-bit
+
+        // ====== Reemplazo de Encript/Decript con AES ======
+        public static string Encript(string plainText) => Encrypt(plainText);
+        public static string Decript(string cipherBase64) => Decrypt(cipherBase64);
+
+        public static string Encrypt(string plainText)
         {
-            try
+            if (plainText == null) plainText = string.Empty;
+
+            using (var aes = Aes.Create())
             {
-                string toReturn;
-                byte[] secretkeyByte = { };
-                secretkeyByte = System.Text.Encoding.UTF8.GetBytes(secretkey);
-                byte[] publickeybyte = { };
-                publickeybyte = System.Text.Encoding.UTF8.GetBytes(publickey);
-                MemoryStream ms = null;
-                CryptoStream cs = null;
-                byte[] inputbyteArray = System.Text.Encoding.UTF8.GetBytes(enctriptar);
-                using (DESCryptoServiceProvider des = new DESCryptoServiceProvider())
+                aes.Mode = CipherMode.CBC;
+                aes.Padding = PaddingMode.PKCS7;
+
+                using (var kdf = new Rfc2898DeriveBytes(Passphrase, Salt, Iterations, HashAlgorithmName.SHA256))
                 {
-                    ms = new MemoryStream();
-                    cs = new CryptoStream(ms, des.CreateEncryptor(publickeybyte, secretkeyByte), CryptoStreamMode.Write);
-                    cs.Write(inputbyteArray, 0, inputbyteArray.Length);
-                    cs.FlushFinalBlock();
-                    toReturn = Convert.ToBase64String(ms.ToArray());
+                    aes.Key = kdf.GetBytes(KeySizeBytes);
                 }
-                return toReturn;
-            }
-            catch (Exception e)
-            {
-                throw new Exception(e.Message, e.InnerException);
+
+                aes.GenerateIV(); // IV aleatorio por mensaje
+
+                using (var ms = new MemoryStream())
+                {
+                    // Guardamos IV al inicio
+                    ms.Write(aes.IV, 0, aes.IV.Length);
+
+                    using (var cs = new CryptoStream(ms, aes.CreateEncryptor(), CryptoStreamMode.Write))
+                    using (var sw = new StreamWriter(cs, Encoding.UTF8))
+                    {
+                        sw.Write(plainText);
+                    }
+
+                    return Convert.ToBase64String(ms.ToArray());
+                }
             }
         }
-        public static string Decript(string desencriptar)
+
+        public static string Decrypt(string cipherBase64)
         {
-            try
+            if (string.IsNullOrWhiteSpace(cipherBase64))
+                return string.Empty;
+
+            var allBytes = Convert.FromBase64String(cipherBase64);
+
+            using (var aes = Aes.Create())
             {
-                string toReturn;
-                byte[] privatekeyByte = { };
-                privatekeyByte = System.Text.Encoding.UTF8.GetBytes(secretkey);
-                byte[] publickeybyte = { };
-                publickeybyte = System.Text.Encoding.UTF8.GetBytes(publickey);
-                MemoryStream ms = null;
-                CryptoStream cs = null;
-                byte[] inputbyteArray = new byte[desencriptar.Replace(" ", "+").Length];
-                inputbyteArray = Convert.FromBase64String(desencriptar.Replace(" ", "+"));
-                using (DESCryptoServiceProvider des = new DESCryptoServiceProvider())
+                aes.Mode = CipherMode.CBC;
+                aes.Padding = PaddingMode.PKCS7;
+
+                using (var kdf = new Rfc2898DeriveBytes(Passphrase, Salt, Iterations, HashAlgorithmName.SHA256))
                 {
-                    ms = new MemoryStream();
-                    cs = new CryptoStream(ms, des.CreateDecryptor(publickeybyte, privatekeyByte), CryptoStreamMode.Write);
-                    cs.Write(inputbyteArray, 0, inputbyteArray.Length);
-                    cs.FlushFinalBlock();
-                    Encoding encoding = Encoding.UTF8;
-                    toReturn = encoding.GetString(ms.ToArray());
+                    aes.Key = kdf.GetBytes(KeySizeBytes);
                 }
-                return toReturn;
-            }
-            catch (Exception e)
-            {
-                throw new Exception(e.Message, e.InnerException);
+
+                int ivLen = aes.BlockSize / 8; // 16
+                var iv = new byte[ivLen];
+                Buffer.BlockCopy(allBytes, 0, iv, 0, ivLen);
+                aes.IV = iv;
+
+                using (var ms = new MemoryStream(allBytes, ivLen, allBytes.Length - ivLen))
+                using (var cs = new CryptoStream(ms, aes.CreateDecryptor(), CryptoStreamMode.Read))
+                using (var sr = new StreamReader(cs, Encoding.UTF8))
+                {
+                    return sr.ReadToEnd();
+                }
             }
         }
-        public static string EncriptMD5(string stringAEncriptar)
+
+        // ====== Legacy utilidades (no tocar llamadas existentes) ======
+        public static string EncriptMD5(string input)
         {
-            string hash = "";
-            if (!String.IsNullOrEmpty(stringAEncriptar))
+            if (string.IsNullOrEmpty(input)) return string.Empty;
+
+            using (var md5 = MD5.Create())
             {
-                MD5 md5 = MD5.Create();
-                byte[] bytes = Encoding.UTF8.GetBytes(stringAEncriptar);
-                byte[] datoEncodeado = md5.ComputeHash(bytes);
-                hash = BitConverter.ToString(datoEncodeado).Replace("-", "");
-
+                byte[] bytes = Encoding.UTF8.GetBytes(input);
+                byte[] hash = md5.ComputeHash(bytes);
+                return BitConverter.ToString(hash).Replace("-", "");
             }
-
-
-            return hash;
         }
 
         public static string GenPassword()
         {
             const string caracteres = "0123456789ABCDEFGHIJKLMNÑOPQRSTUVWXYZabcdefghijklmnñopqrstuvwxyz";
             const int max = 8;
-            string[] chars = new string[max];
-            Random random = new Random();
-
-            for (int i = 0; i < max; i++)
+            var sb = new StringBuilder(max);
+            using (var rng = RandomNumberGenerator.Create())
             {
-                chars[i] += caracteres[random.Next(0, caracteres.Length - 1)];
+                var buf = new byte[4];
+                for (int i = 0; i < max; i++)
+                {
+                    rng.GetBytes(buf);
+                    int idx = (int)(BitConverter.ToUInt32(buf, 0) % (uint)caracteres.Length);
+                    sb.Append(caracteres[idx]);
+                }
             }
-
-
-            return string.Join("", chars);
+            return sb.ToString();
         }
     }
 }

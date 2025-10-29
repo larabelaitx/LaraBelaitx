@@ -16,7 +16,7 @@ namespace BE
         public Usuario()
         {
             Permisos = new List<Permiso>();
-            DebeCambiarContraseña = true;
+            DebeCambiarContraseña = false;
             Tries = 0;
         }
 
@@ -34,11 +34,13 @@ namespace BE
         [DisplayName("Email")]
         public string Email { get; set; }
 
+        // ==== HASH SEGURO ====
+        // Estos campos deben ser byte[] porque en SQL están como VARBINARY.
         [Browsable(false)]
-        public string PasswordHash { get; set; }
+        public byte[] PasswordHash { get; set; }
 
         [Browsable(false)]
-        public string PasswordSalt { get; set; }
+        public byte[] PasswordSalt { get; set; }
 
         [Browsable(false)]
         public int PasswordIterations { get; set; }
@@ -81,9 +83,6 @@ namespace BE
         [DisplayName("Documento")]
         public string Documento { get; set; }
 
-        /// <summary>
-        /// Si manejás un perfil principal por FK (opcional, según tu DAL/UI).
-        /// </summary>
         [Browsable(false)]
         public int RolId { get; set; }
 
@@ -99,9 +98,6 @@ namespace BE
         [Browsable(false)]
         public string DVH { get; set; }
 
-        /// <summary>
-        /// Permisos efectivos del usuario (directos o por familia).
-        /// </summary>
         [Browsable(false)]
         public List<Permiso> Permisos { get; set; }
 
@@ -117,5 +113,4 @@ namespace BE
         [Browsable(false)]
         public Idioma Language { get; set; }
     }
-
 }

@@ -1,53 +1,32 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Data.SqlClient;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Configuration;
+using Services;
 
 namespace DAL
 {
+    /// <summary>
+    /// Fábrica de conexiones centralizada que usa la configuración segura de AppConn.
+    /// Evita dependencias a archivos locales o App.config.
+    /// </summary>
     public static class ConnectionFactory
     {
-        private static string _cnn;
-        private static readonly string _configFilePath =
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        static ConnectionFactory() => Init();
-
-        public static void Init()
-        {
- 
-            if (File.Exists(_configFilePath))
-            {
-                try
-                {
-                    var enc = File.ReadAllText(_configFilePath);
-                    if (!string.IsNullOrWhiteSpace(enc))
-                    {
-                        var plain = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(enc)).Trim();
-                        if (!string.IsNullOrWhiteSpace(plain)) { _cnn = plain; return; }
-                    }
-                }
-                catch { /* sigue */ }
-            }
-
-            _cnn = ConfigurationManager.ConnectionStrings["ITX_DB"]?.ConnectionString;
-            if (!string.IsNullOrWhiteSpace(_cnn)) return;
-
-            _cnn = @"Data Source=LARAB;Initial Catalog=ITX;Integrated Security=True;Encrypt=False;";
-        }
-
+        /// <summary>
+        /// Abre y devuelve una conexión SqlConnection lista para usar.
+        /// </summary>
         public static SqlConnection Open()
         {
-            if (string.IsNullOrWhiteSpace(_cnn))
-                throw new InvalidOperationException("ConnectionFactory no inicializado. Llamá a Init().");
-            var cn = new SqlConnection(_cnn);
+            string cnn = AppConn.Get(); // obtiene la cadena guardada desde ConfigStringConn
+            if (string.IsNullOrWhiteSpace(cnn))
+                throw new InvalidOperationException("No hay cadena de conexión configurada. Ejecutá la configuración primero.");
+
+            var cn = new SqlConnection(cnn);
             cn.Open();
             return cn;
         }
 
-        public static string Current => _cnn;
+        /// <summary>
+        /// Devuelve la cadena actual (sin abrir conexión).
+        /// </summary>
+        public static string Current => AppConn.Get();
     }
 }

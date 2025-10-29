@@ -3,8 +3,8 @@ using System.Linq;
 using System.Windows.Forms;
 using Krypton.Toolkit;
 using BE;
-using DAL;   
-using BLL; 
+using DAL;   // usa DbMaintenance
+using BLL;
 
 namespace UI
 {
@@ -55,12 +55,12 @@ namespace UI
             try
             {
                 int partitions = !string.IsNullOrWhiteSpace(cbPart.Text) && int.TryParse(cbPart.Text, out var p) ? p : 1;
-                DBDao.GetInstance().Backup(_backupPath, partitions);
+
+                // 👉 nuevo llamado
+                DbMaintenance.Backup(_backupPath, partitions);
 
                 KryptonMessageBox.Show(_translator.Translate("infoBackupOk"), "Información");
-
                 BLL.Bitacora.Info(_userSession?.Id, $"Backup realizado por: {_userSession?.UserName} {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-
                 BackupRestore_Load(sender, e);
             }
             catch (Exception ex)
@@ -95,12 +95,11 @@ namespace UI
 
             try
             {
-                DBDao.GetInstance().Restore(_restorePath);
+                // 👉 nuevo llamado
+                DbMaintenance.Restore(_restorePath);
 
                 KryptonMessageBox.Show(_translator.Translate("infoRestoreOk"), "Información");
-
                 BLL.Bitacora.Warn(_userSession?.Id, $"Restore realizado por: {_userSession?.UserName} {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-
                 BackupRestore_Load(sender, e);
             }
             catch (Exception ex)

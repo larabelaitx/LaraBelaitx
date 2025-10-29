@@ -10,7 +10,6 @@
         /// <summary>
         /// Clean up any resources being used.
         /// </summary>
-        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
             if (disposing && (components != null))
@@ -44,7 +43,6 @@
             this.label8 = new System.Windows.Forms.Label();
             this.cboEstado = new Krypton.Toolkit.KryptonComboBox();
             this.cboRol = new Krypton.Toolkit.KryptonComboBox();
-            this.btnAgregar = new System.Windows.Forms.Button();
             this.btnBuscar = new System.Windows.Forms.Button();
             this.btnLimpiar = new System.Windows.Forms.Button();
             this.btnDescargar = new System.Windows.Forms.Button();
@@ -59,6 +57,7 @@
             this.btnEditar = new System.Windows.Forms.DataGridViewButtonColumn();
             this.btnBaja = new System.Windows.Forms.DataGridViewButtonColumn();
             this.btnReactivar = new System.Windows.Forms.DataGridViewButtonColumn();
+            this.btnAgregarr = new System.Windows.Forms.Button();
             this.panel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.cboEstado)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.cboRol)).BeginInit();
@@ -212,19 +211,9 @@
             this.cboRol.StateCommon.ComboBox.Content.TextH = Krypton.Toolkit.PaletteRelativeAlign.Near;
             this.cboRol.TabIndex = 23;
             // 
-            // btnAgregar
-            // 
-            this.btnAgregar.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.btnAgregar.Location = new System.Drawing.Point(755, 77);
-            this.btnAgregar.Name = "btnAgregar";
-            this.btnAgregar.Size = new System.Drawing.Size(148, 48);
-            this.btnAgregar.TabIndex = 24;
-            this.btnAgregar.Text = "Agregar";
-            this.btnAgregar.UseVisualStyleBackColor = true;
-            // 
             // btnBuscar
             // 
-            this.btnBuscar.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnBuscar.Font = new System.Drawing.Font("Segoe UI", 12F);
             this.btnBuscar.Location = new System.Drawing.Point(755, 140);
             this.btnBuscar.Name = "btnBuscar";
             this.btnBuscar.Size = new System.Drawing.Size(148, 48);
@@ -234,7 +223,7 @@
             // 
             // btnLimpiar
             // 
-            this.btnLimpiar.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnLimpiar.Font = new System.Drawing.Font("Segoe UI", 12F);
             this.btnLimpiar.Location = new System.Drawing.Point(929, 140);
             this.btnLimpiar.Name = "btnLimpiar";
             this.btnLimpiar.Size = new System.Drawing.Size(148, 48);
@@ -244,7 +233,7 @@
             // 
             // btnDescargar
             // 
-            this.btnDescargar.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnDescargar.Font = new System.Drawing.Font("Segoe UI", 12F);
             this.btnDescargar.Location = new System.Drawing.Point(929, 73);
             this.btnDescargar.Name = "btnDescargar";
             this.btnDescargar.Size = new System.Drawing.Size(148, 48);
@@ -344,16 +333,27 @@
             this.btnReactivar.Resizable = System.Windows.Forms.DataGridViewTriState.True;
             this.btnReactivar.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.Automatic;
             // 
+            // btnAgregarr
+            // 
+            this.btnAgregarr.Font = new System.Drawing.Font("Segoe UI", 12F);
+            this.btnAgregarr.Location = new System.Drawing.Point(755, 73);
+            this.btnAgregarr.Name = "btnAgregarr";
+            this.btnAgregarr.Size = new System.Drawing.Size(148, 48);
+            this.btnAgregarr.TabIndex = 29;
+            this.btnAgregarr.Text = "Agregar";
+            this.btnAgregarr.UseVisualStyleBackColor = true;
+            this.btnAgregarr.Click += new System.EventHandler(this.btnAgregarr_Click);
+            // 
             // MainUsuarios
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1095, 450);
+            this.ClientSize = new System.Drawing.Size(1103, 422);
+            this.Controls.Add(this.btnAgregarr);
             this.Controls.Add(this.dgvUsuarios);
             this.Controls.Add(this.btnDescargar);
             this.Controls.Add(this.btnLimpiar);
             this.Controls.Add(this.btnBuscar);
-            this.Controls.Add(this.btnAgregar);
             this.Controls.Add(this.cboRol);
             this.Controls.Add(this.cboEstado);
             this.Controls.Add(this.label8);
@@ -399,7 +399,6 @@
         private System.Windows.Forms.Label label8;
         private Krypton.Toolkit.KryptonComboBox cboEstado;
         private Krypton.Toolkit.KryptonComboBox cboRol;
-        private System.Windows.Forms.Button btnAgregar;
         private System.Windows.Forms.Button btnBuscar;
         private System.Windows.Forms.Button btnLimpiar;
         private System.Windows.Forms.Button btnDescargar;
@@ -414,5 +413,6 @@
         private System.Windows.Forms.DataGridViewButtonColumn btnEditar;
         private System.Windows.Forms.DataGridViewButtonColumn btnBaja;
         private System.Windows.Forms.DataGridViewButtonColumn btnReactivar;
+        private System.Windows.Forms.Button btnAgregarr;
     }
 }

@@ -1,35 +1,67 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Services;
+using System.Data;
+using System.Data.SqlClient;
 
 namespace DAL
 {
-    public class DVHDao
+    /// <summary>
+    /// Acceso a DVH por tabla. Usa ConnectionFactory para la cadena de conexión.
+    /// </summary>
+    public sealed class DVHDao
     {
-        private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Crypto.Decript(FileHelper.GetInstance(configFilePath).ReadFile());
-        #region SINGLETON
-
+        // --- Singleton ---
         private static DVHDao _instance;
-        public static DVHDao GetInstance()
+        public static DVHDao GetInstance() => _instance ?? (_instance = new DVHDao());
+        private DVHDao() { }
+
+        /// <summary>
+        /// Devuelve los DVH de la tabla indicada.
+        /// </summary>
+        public System.Collections.Generic.List<BE.DVH> GetDvhs(string table)
         {
-            if (_instance == null)
+            string safeTable = SanitizeTableName(table);
+
+            // NOTA: no se puede parametrizar el nombre de tabla.
+            // Usamos brackets + sanitizado para reducir riesgos.
+            string sql = $"SELECT DVH FROM [{safeTable}]";
+
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
+            using (var da = new SqlDataAdapter(cmd))
             {
-                _instance = new DVHDao();
+                var dt = new DataTable();
+                da.Fill(dt);
+                return DAL.Mappers.MPDVH.GetInstance().MapDVHs(dt, safeTable);
+            }
+        }
+
+        /// <summary>
+        /// Sanea el nombre de tabla para que sólo permita letras, números, _ y .
+        /// Lanza excepción si queda vacío o cambia el nombre.
+        /// </summary>
+        private static string SanitizeTableName(string table)
+        {
+            if (string.IsNullOrWhiteSpace(table))
+                throw new ArgumentException("El nombre de la tabla es requerido.", nameof(table));
+
+            // Permitimos: letras, números, guion bajo y punto (para esquemas tipo dbo.Tabla)
+            var chars = table.Trim();
+            var filtered = new System.Text.StringBuilder(chars.Length);
+            foreach (char c in chars)
+            {
+                if (char.IsLetterOrDigit(c) || c == '_' || c == '.')
+                    filtered.Append(c);
             }
 
-            return _instance;
-        }
-        #endregion
+            var result = filtered.ToString();
+            if (string.IsNullOrWhiteSpace(result))
+                throw new ArgumentException("El nombre de la tabla no es válido.", nameof(table));
 
-        public List<BE.DVH> GetDvhs(string table)
-        {
-            string querySelect = string.Format("SELECT DVH FROM {0}", table);
-            return Mappers.MPDVH.GetInstance().MapDVHs(Services.SqlHelpers.GetInstance(_connString).GetDataTable(querySelect), table);
+            // Evitar doble punto o finalizar con punto
+            if (result.StartsWith(".") || result.EndsWith(".") || result.Contains(".."))
+                throw new ArgumentException("El nombre de la tabla no es válido.", nameof(table));
+
+            return result;
         }
     }
 }

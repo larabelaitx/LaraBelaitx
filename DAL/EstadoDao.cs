@@ -1,67 +1,67 @@
-﻿using System;
+﻿// DAL/EstadoDao.cs
+using System;
+using System.Data;
+using System.Data.SqlClient;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using DAL.Mappers;
-using Services;
-using BE;
 
 namespace DAL
 {
-    public class EstadoDao : ICRUD<BE.Estado>
+    /// <summary>
+    /// Acceso a Estados.
+    /// Usa ConnectionFactory para obtener la conexión (centralizado).
+    /// </summary>
+    public sealed class EstadoDao
     {
+        // -------- Singleton --------
+        private static EstadoDao _inst;
+        public static EstadoDao GetInstance() => _inst ?? (_inst = new EstadoDao());
+        private EstadoDao() { }
 
-        private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Crypto.Decript(FileHelper.GetInstance(configFilePath).ReadFile());
-
-        #region Singleton
-        private static EstadoDao _instance;
-        public static EstadoDao GetInstance()
+        /// <summary>
+        /// Obtiene un estado por Id.
+        /// </summary>
+        public BE.Estado GetById(int idEstado)
         {
-            if (_instance == null)
+            const string sql = @"SELECT IdEstado, Descripcion
+                                 FROM Estado
+                                 WHERE IdEstado = @id";
+
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
+            using (var da = new SqlDataAdapter(cmd))
             {
-                _instance = new EstadoDao();
+                cmd.Parameters.AddWithValue("@id", idEstado);
+
+                var dt = new DataTable();
+                da.Fill(dt);
+
+                return MPEstado.GetInstance().Map(dt);
             }
-
-            return _instance;
         }
 
-        #endregion
-        public bool Add(Estado alta)
-        {
-            throw new NotImplementedException();
-        }
-
-        public bool Delete(Estado delete)
-        {
-            throw new NotImplementedException();
-        }
-
-        public List<Estado> GetAll()
-        {
-            string SelectAll = "SELECT IdEstado, Descripcion FROM Estado";
-            return Mappers.MPEstado.GetInstance().MapEstados(Services.SqlHelpers.GetInstance(_connString).GetDataTable(SelectAll));
-        }
-
-        public Estado GetById(int idEstado)
-        {
-            string SelectId = "SELECT IdEstado, Descripcion FROM Estado WHERE IdEstado = {0}";
-            SelectId = string.Format(SelectId, idEstado);
-            return Mappers.MPEstado.GetInstance().Map(Services.SqlHelpers.GetInstance(_connString).GetDataTable(SelectId));
-        }
-
-        public bool Update(Estado update)
-        {
-            throw new NotImplementedException();
-        }
-
+        /// <summary>
+        /// Obtiene el estado actual asignado a un usuario.
+        /// </summary>
         public BE.Estado GetEstadoUsuario(int idUsuario)
         {
-            string SelectJoin = "SELECT E.IdEstado, E.Descripcion from Estado as E INNER JOIN Usuario as U on E.IdEstado = U.IdEstado WHERE U.IdUsuario = {0}";
-            SelectJoin = string.Format(SelectJoin, idUsuario);
-            return Mappers.MPEstado.GetInstance().Map(Services.SqlHelpers.GetInstance(_connString).GetDataTable(SelectJoin));
+            const string sql = @"
+                SELECT  E.IdEstado, E.Descripcion
+                FROM    Estado AS E
+                INNER JOIN Usuario AS U ON U.IdEstado = E.IdEstado
+                WHERE   U.IdUsuario = @u";
+
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
+            using (var da = new SqlDataAdapter(cmd))
+            {
+                cmd.Parameters.AddWithValue("@u", idUsuario);
+
+                var dt = new DataTable();
+                da.Fill(dt);
+
+                return MPEstado.GetInstance().Map(dt);
+            }
         }
     }
 }

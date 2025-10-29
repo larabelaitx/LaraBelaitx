@@ -31,24 +31,24 @@
             this.panel1 = new System.Windows.Forms.Panel();
             this.btnVolver = new System.Windows.Forms.Button();
             this.label2 = new System.Windows.Forms.Label();
-            this.label1 = new System.Windows.Forms.Label();
-            this.txtNombre = new System.Windows.Forms.TextBox();
-            this.label3 = new System.Windows.Forms.Label();
-            this.txtApellido = new System.Windows.Forms.TextBox();
-            this.label4 = new System.Windows.Forms.Label();
-            this.txtDocumento = new System.Windows.Forms.TextBox();
-            this.label5 = new System.Windows.Forms.Label();
-            this.txtEmail = new System.Windows.Forms.TextBox();
-            this.label6 = new System.Windows.Forms.Label();
-            this.txtUsuario = new System.Windows.Forms.TextBox();
-            this.label7 = new System.Windows.Forms.Label();
-            this.cboRol = new Krypton.Toolkit.KryptonComboBox();
-            this.label8 = new System.Windows.Forms.Label();
+            this.lblNombre = new System.Windows.Forms.Label();
+            this.lblApellido = new System.Windows.Forms.Label();
+            this.lblDocumento = new System.Windows.Forms.Label();
+            this.lblEmail = new System.Windows.Forms.Label();
+            this.lblUsuario = new System.Windows.Forms.Label();
+            this.lblRol = new System.Windows.Forms.Label();
+            this.lblEstado = new System.Windows.Forms.Label();
             this.cboEstado = new Krypton.Toolkit.KryptonComboBox();
+            this.cboRol = new Krypton.Toolkit.KryptonComboBox();
+            this.txtUsuario = new Krypton.Toolkit.KryptonTextBox();
+            this.txtDocumento = new Krypton.Toolkit.KryptonTextBox();
+            this.txtNombre = new Krypton.Toolkit.KryptonTextBox();
+            this.txtEmail = new Krypton.Toolkit.KryptonTextBox();
+            this.txtApellido = new Krypton.Toolkit.KryptonTextBox();
             this.btnGuardar = new Krypton.Toolkit.KryptonButton();
             this.panel1.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.cboRol)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.cboEstado)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.cboRol)).BeginInit();
             this.SuspendLayout();
             // 
             // panel1
@@ -56,14 +56,15 @@
             this.panel1.BackColor = System.Drawing.Color.CornflowerBlue;
             this.panel1.Controls.Add(this.btnVolver);
             this.panel1.Controls.Add(this.label2);
-            this.panel1.Location = new System.Drawing.Point(1, 1);
+            this.panel1.Location = new System.Drawing.Point(2, -4);
             this.panel1.Name = "panel1";
-            this.panel1.Size = new System.Drawing.Size(1081, 54);
-            this.panel1.TabIndex = 10;
+            this.panel1.Size = new System.Drawing.Size(1085, 57);
+            this.panel1.TabIndex = 15;
+            this.panel1.Paint += new System.Windows.Forms.PaintEventHandler(this.panel1_Paint);
             // 
             // btnVolver
             // 
-            this.btnVolver.Location = new System.Drawing.Point(930, 6);
+            this.btnVolver.Location = new System.Drawing.Point(934, 12);
             this.btnVolver.Name = "btnVolver";
             this.btnVolver.Size = new System.Drawing.Size(148, 38);
             this.btnVolver.TabIndex = 19;
@@ -76,140 +77,145 @@
             this.label2.Font = new System.Drawing.Font("Segoe UI Semibold", 16.2F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.label2.Location = new System.Drawing.Point(12, 6);
             this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(183, 38);
+            this.label2.Size = new System.Drawing.Size(185, 38);
             this.label2.TabIndex = 7;
-            this.label2.Text = "ITX - Clientes";
-            this.label2.Click += new System.EventHandler(this.label2_Click);
+            this.label2.Text = "ITX - Familias";
             // 
-            // label1
+            // lblNombre
             // 
-            this.label1.AutoSize = true;
-            this.label1.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label1.Location = new System.Drawing.Point(12, 58);
-            this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(94, 28);
-            this.label1.TabIndex = 21;
-            this.label1.Text = "Nombre: ";
+            this.lblNombre.AutoSize = true;
+            this.lblNombre.Font = new System.Drawing.Font("Segoe UI Semibold", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblNombre.Location = new System.Drawing.Point(12, 56);
+            this.lblNombre.Name = "lblNombre";
+            this.lblNombre.Size = new System.Drawing.Size(92, 28);
+            this.lblNombre.TabIndex = 20;
+            this.lblNombre.Text = "Nombre:";
             // 
-            // txtNombre
+            // lblApellido
             // 
-            this.txtNombre.Location = new System.Drawing.Point(154, 65);
-            this.txtNombre.Name = "txtNombre";
-            this.txtNombre.Size = new System.Drawing.Size(228, 22);
-            this.txtNombre.TabIndex = 37;
+            this.lblApellido.AutoSize = true;
+            this.lblApellido.Font = new System.Drawing.Font("Segoe UI Semibold", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblApellido.Location = new System.Drawing.Point(471, 56);
+            this.lblApellido.Name = "lblApellido";
+            this.lblApellido.Size = new System.Drawing.Size(92, 28);
+            this.lblApellido.TabIndex = 21;
+            this.lblApellido.Text = "Apellido:";
+            this.lblApellido.TextAlign = System.Drawing.ContentAlignment.TopCenter;
             // 
-            // label3
+            // lblDocumento
             // 
-            this.label3.AutoSize = true;
-            this.label3.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label3.Location = new System.Drawing.Point(494, 58);
-            this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(90, 28);
-            this.label3.TabIndex = 38;
-            this.label3.Text = "Apellido:";
+            this.lblDocumento.AutoSize = true;
+            this.lblDocumento.Font = new System.Drawing.Font("Segoe UI Semibold", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblDocumento.Location = new System.Drawing.Point(7, 122);
+            this.lblDocumento.Name = "lblDocumento";
+            this.lblDocumento.Size = new System.Drawing.Size(124, 28);
+            this.lblDocumento.TabIndex = 22;
+            this.lblDocumento.Text = "Documento:";
+            this.lblDocumento.TextAlign = System.Drawing.ContentAlignment.TopRight;
             // 
-            // txtApellido
+            // lblEmail
             // 
-            this.txtApellido.Location = new System.Drawing.Point(590, 65);
-            this.txtApellido.Name = "txtApellido";
-            this.txtApellido.Size = new System.Drawing.Size(228, 22);
-            this.txtApellido.TabIndex = 39;
+            this.lblEmail.AutoSize = true;
+            this.lblEmail.Font = new System.Drawing.Font("Segoe UI Semibold", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblEmail.Location = new System.Drawing.Point(471, 122);
+            this.lblEmail.Name = "lblEmail";
+            this.lblEmail.Size = new System.Drawing.Size(65, 28);
+            this.lblEmail.TabIndex = 23;
+            this.lblEmail.Text = "Email:";
+            this.lblEmail.TextAlign = System.Drawing.ContentAlignment.TopRight;
             // 
-            // label4
+            // lblUsuario
             // 
-            this.label4.AutoSize = true;
-            this.label4.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label4.Location = new System.Drawing.Point(12, 109);
-            this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(124, 28);
-            this.label4.TabIndex = 40;
-            this.label4.Text = "Documento: ";
+            this.lblUsuario.AutoSize = true;
+            this.lblUsuario.Font = new System.Drawing.Font("Segoe UI Semibold", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblUsuario.Location = new System.Drawing.Point(12, 184);
+            this.lblUsuario.Name = "lblUsuario";
+            this.lblUsuario.Size = new System.Drawing.Size(86, 28);
+            this.lblUsuario.TabIndex = 24;
+            this.lblUsuario.Text = "Usuario:";
+            this.lblUsuario.TextAlign = System.Drawing.ContentAlignment.TopRight;
             // 
-            // txtDocumento
+            // lblRol
             // 
-            this.txtDocumento.Location = new System.Drawing.Point(154, 116);
-            this.txtDocumento.Name = "txtDocumento";
-            this.txtDocumento.Size = new System.Drawing.Size(228, 22);
-            this.txtDocumento.TabIndex = 41;
+            this.lblRol.AutoSize = true;
+            this.lblRol.Font = new System.Drawing.Font("Segoe UI Semibold", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblRol.Location = new System.Drawing.Point(471, 184);
+            this.lblRol.Name = "lblRol";
+            this.lblRol.Size = new System.Drawing.Size(45, 28);
+            this.lblRol.TabIndex = 25;
+            this.lblRol.Text = "Rol:";
+            this.lblRol.TextAlign = System.Drawing.ContentAlignment.TopRight;
             // 
-            // label5
+            // lblEstado
             // 
-            this.label5.AutoSize = true;
-            this.label5.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label5.Location = new System.Drawing.Point(494, 109);
-            this.label5.Name = "label5";
-            this.label5.Size = new System.Drawing.Size(59, 28);
-            this.label5.TabIndex = 42;
-            this.label5.Text = "Mail: ";
-            // 
-            // txtEmail
-            // 
-            this.txtEmail.Location = new System.Drawing.Point(590, 116);
-            this.txtEmail.Name = "txtEmail";
-            this.txtEmail.Size = new System.Drawing.Size(228, 22);
-            this.txtEmail.TabIndex = 43;
-            // 
-            // label6
-            // 
-            this.label6.AutoSize = true;
-            this.label6.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label6.Location = new System.Drawing.Point(15, 165);
-            this.label6.Name = "label6";
-            this.label6.Size = new System.Drawing.Size(88, 28);
-            this.label6.TabIndex = 44;
-            this.label6.Text = "Usuario: ";
-            // 
-            // txtUsuario
-            // 
-            this.txtUsuario.Location = new System.Drawing.Point(154, 171);
-            this.txtUsuario.Name = "txtUsuario";
-            this.txtUsuario.Size = new System.Drawing.Size(228, 22);
-            this.txtUsuario.TabIndex = 45;
-            // 
-            // label7
-            // 
-            this.label7.AutoSize = true;
-            this.label7.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label7.Location = new System.Drawing.Point(494, 165);
-            this.label7.Name = "label7";
-            this.label7.Size = new System.Drawing.Size(44, 28);
-            this.label7.TabIndex = 46;
-            this.label7.Text = "Rol:";
-            // 
-            // cboRol
-            // 
-            this.cboRol.DropDownWidth = 228;
-            this.cboRol.Location = new System.Drawing.Point(590, 165);
-            this.cboRol.Name = "cboRol";
-            this.cboRol.Size = new System.Drawing.Size(228, 26);
-            this.cboRol.StateCommon.ComboBox.Content.TextH = Krypton.Toolkit.PaletteRelativeAlign.Near;
-            this.cboRol.TabIndex = 47;
-            // 
-            // label8
-            // 
-            this.label8.AutoSize = true;
-            this.label8.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label8.Location = new System.Drawing.Point(15, 219);
-            this.label8.Name = "label8";
-            this.label8.Size = new System.Drawing.Size(80, 28);
-            this.label8.TabIndex = 48;
-            this.label8.Text = "Estado: ";
+            this.lblEstado.AutoSize = true;
+            this.lblEstado.Font = new System.Drawing.Font("Segoe UI Semibold", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblEstado.Location = new System.Drawing.Point(12, 255);
+            this.lblEstado.Name = "lblEstado";
+            this.lblEstado.Size = new System.Drawing.Size(77, 28);
+            this.lblEstado.TabIndex = 26;
+            this.lblEstado.Text = "Estado:";
+            this.lblEstado.TextAlign = System.Drawing.ContentAlignment.TopRight;
             // 
             // cboEstado
             // 
-            this.cboEstado.DropDownWidth = 228;
-            this.cboEstado.Location = new System.Drawing.Point(154, 221);
+            this.cboEstado.DropDownWidth = 322;
+            this.cboEstado.Location = new System.Drawing.Point(12, 286);
             this.cboEstado.Name = "cboEstado";
-            this.cboEstado.Size = new System.Drawing.Size(228, 26);
+            this.cboEstado.Size = new System.Drawing.Size(322, 26);
             this.cboEstado.StateCommon.ComboBox.Content.TextH = Krypton.Toolkit.PaletteRelativeAlign.Near;
-            this.cboEstado.TabIndex = 49;
+            this.cboEstado.TabIndex = 27;
+            // 
+            // cboRol
+            // 
+            this.cboRol.DropDownWidth = 266;
+            this.cboRol.Location = new System.Drawing.Point(476, 216);
+            this.cboRol.Name = "cboRol";
+            this.cboRol.Size = new System.Drawing.Size(322, 26);
+            this.cboRol.StateCommon.ComboBox.Content.TextH = Krypton.Toolkit.PaletteRelativeAlign.Near;
+            this.cboRol.TabIndex = 28;
+            // 
+            // txtUsuario
+            // 
+            this.txtUsuario.Location = new System.Drawing.Point(12, 215);
+            this.txtUsuario.Name = "txtUsuario";
+            this.txtUsuario.Size = new System.Drawing.Size(322, 27);
+            this.txtUsuario.TabIndex = 29;
+            // 
+            // txtDocumento
+            // 
+            this.txtDocumento.Location = new System.Drawing.Point(12, 150);
+            this.txtDocumento.Name = "txtDocumento";
+            this.txtDocumento.Size = new System.Drawing.Size(322, 27);
+            this.txtDocumento.TabIndex = 30;
+            // 
+            // txtNombre
+            // 
+            this.txtNombre.Location = new System.Drawing.Point(12, 87);
+            this.txtNombre.Name = "txtNombre";
+            this.txtNombre.Size = new System.Drawing.Size(322, 27);
+            this.txtNombre.TabIndex = 31;
+            // 
+            // txtEmail
+            // 
+            this.txtEmail.Location = new System.Drawing.Point(476, 154);
+            this.txtEmail.Name = "txtEmail";
+            this.txtEmail.Size = new System.Drawing.Size(322, 27);
+            this.txtEmail.TabIndex = 32;
+            // 
+            // txtApellido
+            // 
+            this.txtApellido.Location = new System.Drawing.Point(476, 87);
+            this.txtApellido.Name = "txtApellido";
+            this.txtApellido.Size = new System.Drawing.Size(322, 27);
+            this.txtApellido.TabIndex = 33;
             // 
             // btnGuardar
             // 
-            this.btnGuardar.Location = new System.Drawing.Point(489, 275);
+            this.btnGuardar.Location = new System.Drawing.Point(426, 352);
             this.btnGuardar.Name = "btnGuardar";
-            this.btnGuardar.Size = new System.Drawing.Size(145, 57);
-            this.btnGuardar.TabIndex = 50;
+            this.btnGuardar.Size = new System.Drawing.Size(201, 56);
+            this.btnGuardar.TabIndex = 34;
             this.btnGuardar.Values.DropDownArrowColor = System.Drawing.Color.Empty;
             this.btnGuardar.Values.Text = "Guardar";
             // 
@@ -217,30 +223,30 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1092, 326);
+            this.ClientSize = new System.Drawing.Size(1090, 436);
             this.Controls.Add(this.btnGuardar);
-            this.Controls.Add(this.cboEstado);
-            this.Controls.Add(this.label8);
-            this.Controls.Add(this.cboRol);
-            this.Controls.Add(this.label7);
-            this.Controls.Add(this.txtUsuario);
-            this.Controls.Add(this.label6);
-            this.Controls.Add(this.txtEmail);
-            this.Controls.Add(this.label5);
-            this.Controls.Add(this.txtDocumento);
-            this.Controls.Add(this.label4);
             this.Controls.Add(this.txtApellido);
-            this.Controls.Add(this.label3);
+            this.Controls.Add(this.txtEmail);
             this.Controls.Add(this.txtNombre);
-            this.Controls.Add(this.label1);
+            this.Controls.Add(this.txtDocumento);
+            this.Controls.Add(this.txtUsuario);
+            this.Controls.Add(this.cboRol);
+            this.Controls.Add(this.cboEstado);
+            this.Controls.Add(this.lblEstado);
+            this.Controls.Add(this.lblRol);
+            this.Controls.Add(this.lblUsuario);
+            this.Controls.Add(this.lblEmail);
+            this.Controls.Add(this.lblDocumento);
+            this.Controls.Add(this.lblApellido);
+            this.Controls.Add(this.lblNombre);
             this.Controls.Add(this.panel1);
             this.Name = "AltaUsuario";
             this.Text = "AltaUsuario";
             this.Load += new System.EventHandler(this.AltaUsuario_Load);
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.cboRol)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.cboEstado)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.cboRol)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -251,20 +257,20 @@
         private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.Button btnVolver;
         private System.Windows.Forms.Label label2;
-        private System.Windows.Forms.Label label1;
-        private System.Windows.Forms.TextBox txtNombre;
-        private System.Windows.Forms.Label label3;
-        private System.Windows.Forms.TextBox txtApellido;
-        private System.Windows.Forms.Label label4;
-        private System.Windows.Forms.TextBox txtDocumento;
-        private System.Windows.Forms.Label label5;
-        private System.Windows.Forms.TextBox txtEmail;
-        private System.Windows.Forms.Label label6;
-        private System.Windows.Forms.TextBox txtUsuario;
-        private System.Windows.Forms.Label label7;
-        private Krypton.Toolkit.KryptonComboBox cboRol;
-        private System.Windows.Forms.Label label8;
+        private System.Windows.Forms.Label lblNombre;
+        private System.Windows.Forms.Label lblApellido;
+        private System.Windows.Forms.Label lblDocumento;
+        private System.Windows.Forms.Label lblEmail;
+        private System.Windows.Forms.Label lblUsuario;
+        private System.Windows.Forms.Label lblRol;
+        private System.Windows.Forms.Label lblEstado;
         private Krypton.Toolkit.KryptonComboBox cboEstado;
+        private Krypton.Toolkit.KryptonComboBox cboRol;
+        private Krypton.Toolkit.KryptonTextBox txtUsuario;
+        private Krypton.Toolkit.KryptonTextBox txtDocumento;
+        private Krypton.Toolkit.KryptonTextBox txtNombre;
+        private Krypton.Toolkit.KryptonTextBox txtEmail;
+        private Krypton.Toolkit.KryptonTextBox txtApellido;
         private Krypton.Toolkit.KryptonButton btnGuardar;
     }
 }

@@ -1,53 +1,60 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Services;
 
 namespace DAL
 {
     public class TranslatorDao
     {
-        private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Crypto.Decript(FileHelper.GetInstance(configFilePath).ReadFile());
-        private static Dictionary<string, string> _translations = new Dictionary<string, string>();
-
-        #region Singleton
+        // Singleton básico
         private static TranslatorDao _instance;
-        public static TranslatorDao GetInstance()
+        public static TranslatorDao GetInstance() => _instance ?? (_instance = new TranslatorDao());
+        private TranslatorDao() { }
+
+        /// <summary>
+        /// Carga todas las traducciones para un código de idioma dado (p.ej. "es", "en").
+        /// </summary>
+        public Dictionary<string, string> LoadTranslations(string languageCode)
         {
-            if (_instance == null)
+            if (string.IsNullOrWhiteSpace(languageCode))
+                languageCode = "es";
+
+            const string sql = @"SELECT KeyId, TextDescription
+                                 FROM MultiIdioma
+                                 WHERE LanguageCode = @Lang";
+
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
             {
-                _instance = new TranslatorDao();
-            }
+                cmd.Parameters.AddWithValue("@Lang", languageCode);
 
-            return _instance;
-        }
-        #endregion
-
-        public Dictionary<string, string> LoadTranslations(string LanguageCode)
-        {
-            using (SqlConnection connection = new SqlConnection(_connString))
-            {
-                string query = "SELECT KeyId, TextDescription FROM MultiIdioma WHERE LanguageCode = @LanguageCode";
-                SqlCommand command = new SqlCommand(query, connection);
-                command.Parameters.AddWithValue("@LanguageCode", LanguageCode);
-
-                connection.Open();
-                using (SqlDataReader reader = command.ExecuteReader())
+                using (var reader = cmd.ExecuteReader())
                 {
                     while (reader.Read())
                     {
-                        string key = reader.GetString(0);
-                        string value = reader.GetString(1);
-                        _translations[key] = value;
+                        var key = reader.IsDBNull(0) ? null : reader.GetString(0);
+                        var val = reader.IsDBNull(1) ? "" : reader.GetString(1);
+                        if (!string.IsNullOrEmpty(key))
+                            map[key] = val ?? "";
                     }
                 }
             }
-            return _translations;
+
+            return map;
+        }
+
+        /// <summary>
+        /// Traduce una clave puntual. Si no existe, devuelve la clave tal cual.
+        /// </summary>
+        public string Translate(string languageCode, string key)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+                return key;
+
+            var dict = LoadTranslations(languageCode);
+            return dict.TryGetValue(key, out var value) ? value : key;
         }
     }
 }

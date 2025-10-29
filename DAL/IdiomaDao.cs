@@ -1,64 +1,38 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Data;
+using System.Data.SqlClient;
 using DAL.Mappers;
-using Services;
-using BE;
 
 namespace DAL
 {
-    public class IdiomaDao : ICRUD<BE.Idioma>
+    public class IdiomaDao
     {
-        private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Crypto.Decript(FileHelper.GetInstance(configFilePath).ReadFile());
+        private static IdiomaDao _inst;
+        public static IdiomaDao GetInstance() => _inst ?? (_inst = new IdiomaDao());
+        private IdiomaDao() { }
 
-        private static IdiomaDao _instance;
-        //Singleton
-        public static IdiomaDao GetInstance()
-        {
-            if (_instance == null)
-            {
-                _instance = new IdiomaDao();
-            }
-            return _instance;
-        }
+        // Usamos la cadena centralizada (AppConn -> ConnectionFactory)
+        private static string Cnn => ConnectionFactory.Current;
 
-        public bool Add(Idioma alta)
+        public BE.Idioma GetById(int idIdioma)
         {
-            throw new NotImplementedException();
-        }
-
-        public bool Delete(Idioma delete)
-        {
-            throw new NotImplementedException();
-        }
-
-        public List<Idioma> GetAll()
-        {
-            string SelectAll = "SELECT IdIdioma, Nombre FROM Idioma";
-            return Mappers.MPIdioma.GetInstance().MapIdiomas(Services.SqlHelpers.GetInstance(_connString).GetDataTable(SelectAll));
-        }
-
-        public Idioma GetById(int idIdioma)
-        {
-            string SelectId = "SELECT IdIdioma, Nombre FROM Idioma WHERE IdIdioma = {0}";
-            SelectId = string.Format(SelectId, idIdioma);
-            return Mappers.MPIdioma.GetInstance().Map(Services.SqlHelpers.GetInstance(_connString).GetDataTable(SelectId));
-        }
-
-        public bool Update(Idioma update)
-        {
-            throw new NotImplementedException();
+            const string sql = @"SELECT IdIdioma, Nombre FROM Idioma WHERE IdIdioma = @id";
+            var ps = new List<SqlParameter> { new SqlParameter("@id", idIdioma) };
+            DataTable dt = Services.SqlHelpers.GetInstance(Cnn).GetDataTable(sql, ps);
+            return MPIdioma.GetInstance().Map(dt);
         }
 
         public BE.Idioma GetIdiomaUsuario(int idUsuario)
         {
-            string SelectJoin = "SELECT I.* from Idioma as I INNER JOIN Usuario as U on I.IdIdioma = U.IdIdioma WHERE U.IdUsuario = {0}";
-            SelectJoin = string.Format(SelectJoin, idUsuario);
-            return Mappers.MPIdioma.GetInstance().Map(Services.SqlHelpers.GetInstance(_connString).GetDataTable(SelectJoin));
+            const string sql = @"
+                SELECT I.IdIdioma, I.Nombre
+                FROM Idioma AS I
+                INNER JOIN Usuario AS U ON U.IdIdioma = I.IdIdioma
+                WHERE U.IdUsuario = @u";
+            var ps = new List<SqlParameter> { new SqlParameter("@u", idUsuario) };
+            DataTable dt = Services.SqlHelpers.GetInstance(Cnn).GetDataTable(sql, ps);
+            return MPIdioma.GetInstance().Map(dt);
         }
     }
 }

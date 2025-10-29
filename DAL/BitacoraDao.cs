@@ -1,196 +1,218 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Data;
 using System.Data.SqlClient;
-using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using BE;
 using Services;
 
 namespace DAL
 {
     public class BitacoraDao
     {
-        private static string configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-        private static string _connString = Crypto.Decript(FileHelper.GetInstance(configFilePath).ReadFile());
-        private static BitacoraDao _instance;
-
-        #region Singleton
-        public static BitacoraDao GetInstance()
-        {
-            if (_instance == null)
-                _instance = new BitacoraDao();
-            return _instance;
-        }
-
+        private static BitacoraDao _inst;
         private BitacoraDao() { }
-        #endregion
+        public static BitacoraDao GetInstance() => _inst ?? (_inst = new BitacoraDao());
 
-        #region ADD
-        public bool Add(BE.Bitacora entry, BE.DVH dvh)
+        private static string Cnn() => ConnectionFactory.Current;
+
+        // ---------- ALTAS ----------
+        public bool Add(int? usuarioId, string modulo, string accion, int? severidad, string mensaje, string ip, string host, DateTime? fecha = null)
         {
-            const string sql = @"
-                INSERT INTO Bitacora
+            DateTime f = fecha ?? DateTime.Now;
+
+            // DVH: Fecha|UsuarioId|Modulo|Accion|Severidad|Mensaje|IP|Host
+            string fila = string.Join("|", new[] {
+                f.ToString("O"), usuarioId?.ToString(), modulo, accion,
+                severidad?.ToString(), mensaje, ip, host
+            });
+            string dvh = DV.GetDV(fila);
+
+            const string ins = @"
+                INSERT INTO dbo.Bitacora
                     (Fecha, UsuarioId, Modulo, Accion, Severidad, Mensaje, IP, Host, DVH)
                 VALUES
-                    (@Fecha, @UsuarioId, @Modulo, @Accion, @Severidad, @Mensaje, @IP, @Host, @DVH)";
+                    (@Fecha, @UsuarioId, @Modulo, @Accion, @Severidad, @Mensaje, @IP, @Host, @DVH);";
 
-            try
+            using (var cn = new SqlConnection(Cnn()))
             {
-                var ps = new List<SqlParameter>
+                cn.Open();
+                using (var tx = cn.BeginTransaction())
                 {
-                    new SqlParameter("@Fecha", entry.Fecha),
-                    new SqlParameter("@UsuarioId", (object)(entry.Usuario?.Id ?? (int?)null) ?? DBNull.Value),
-                    new SqlParameter("@Modulo", (object)entry?.strCritc ?? DBNull.Value),   // si no usás Modulo, podés dejar NULL
-                    new SqlParameter("@Accion", DBNull.Value),
-                    new SqlParameter("@Severidad", entry.Criticidad?.Id ?? (object)DBNull.Value),
-                    new SqlParameter("@Mensaje", entry.Descripcion ?? (object)DBNull.Value),
-                    new SqlParameter("@IP", DBNull.Value),
-                    new SqlParameter("@Host", DBNull.Value),
-                    new SqlParameter("@DVH", (object)dvh?.dvh ?? DBNull.Value)
-                };
-
-                int rows = SqlHelpers.GetInstance(_connString).ExecuteQuery(sql, ps);
-
-                if (rows > 0)
-                {
-                    DVVDao.GetInstance().AddUpdateDVV(new BE.DVV
+                    try
                     {
-                        tabla = "Bitacora",
-                        dvv = DVVDao.GetInstance().CalculateDVV("Bitacora")
-                    });
-                    return true;
-                }
+                        using (var cmd = new SqlCommand(ins, cn, tx))
+                        {
+                            cmd.Parameters.AddWithValue("@Fecha", f);
+                            cmd.Parameters.AddWithValue("@UsuarioId", (object)usuarioId ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@Modulo", (object)modulo ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@Accion", (object)accion ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@Severidad", (object)severidad ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@Mensaje", (object)mensaje ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@IP", (object)ip ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@Host", (object)host ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@DVH", (object)dvh ?? DBNull.Value);
+                            cmd.ExecuteNonQuery();
+                        }
 
-                return false;
-            }
-            catch
-            {
-                throw;
+                        string dvv = DVVDao.GetInstance().CalculateDVV("Bitacora");
+                        UpsertDVV_tx(cn, tx, "Bitacora", dvv);
+
+                        tx.Commit();
+                        return true;
+                    }
+                    catch
+                    {
+                        tx.Rollback();
+                        return false; // nunca romper el flujo por Bitácora
+                    }
+                }
             }
         }
-        #endregion
 
-        #region SEARCH
-        /// <summary>
-        /// Búsqueda paginada con filtros opcionales.
-        /// </summary>
-        public (IList<BitacoraEntry> rows, int total) Search(
-     DateTime? desde, DateTime? hasta, string modulo,
-     string accion, string mensaje, string usuario,
-     byte? severidad, int page, int pageSize, string ordenarPor)
+        // Helpers prácticos
+        public bool AddLoginOk(int? usuarioId, string ip = null, string host = null)
+            => Add(usuarioId, "Seguridad", "Login", 1, "Login OK", ip, host);
+
+        public bool AddLoginFail(string userNameOrMail, string ip = null, string host = null)
+            => Add(null, "Seguridad", "LoginFail", 2, $"Intento fallido de login: {userNameOrMail}", ip, host);
+
+        public bool AddError(string modulo, string accion, string mensaje, int? usuarioId = null, string ip = null, string host = null)
+            => Add(usuarioId, modulo, accion, 3, mensaje, ip, host);
+
+        // ---------- CONSULTAS ----------
+        public (DataTable Rows, int Total) Search(DateTime? desde, DateTime? hasta, string usuario, int page, int pageSize, string ordenar)
         {
-            var list = new List<BitacoraEntry>();
-            int total = 0;
+            if (page < 1) page = 1;
+            if (pageSize <= 0) pageSize = 50;
 
-            string selectCore = @"
-                SELECT B.IdBitacora, B.Fecha, B.UsuarioId, U.Usuario AS Usuario, 
-               B.Modulo, B.Accion, B.Severidad, B.Mensaje, B.IP, B.Host
-                FROM Bitacora B
-             LEFT JOIN Usuario U ON B.UsuarioId = U.IdUsuario
-              WHERE 1=1";
-
-            var where = new System.Text.StringBuilder();
             var ps = new List<SqlParameter>();
+            var where = new StringBuilder("WHERE 1=1 ");
 
-            if (desde.HasValue)
-            {
-                where.Append(" AND B.Fecha >= @desde");
-                ps.Add(new SqlParameter("@desde", desde.Value));
-            }
-            if (hasta.HasValue)
-            {
-                where.Append(" AND B.Fecha <= @hasta");
-                ps.Add(new SqlParameter("@hasta", hasta.Value));
-            }
+            if (desde.HasValue) { where.Append("AND b.Fecha >= @d "); ps.Add(new SqlParameter("@d", desde.Value)); }
+            if (hasta.HasValue) { where.Append("AND b.Fecha <= @h "); ps.Add(new SqlParameter("@h", hasta.Value)); }
             if (!string.IsNullOrWhiteSpace(usuario))
             {
-                where.Append(" AND (U.Usuario LIKE @usuario OR U.Mail LIKE @usuario)");
-                ps.Add(new SqlParameter("@usuario", $"%{usuario}%"));
+                // 👇 Ajustado a tu esquema: u.Usuario y u.Mail
+                where.Append("AND (u.Usuario = @u OR u.Mail = @u) ");
+                ps.Add(new SqlParameter("@u", usuario));
             }
-            if (!string.IsNullOrWhiteSpace(mensaje))
+
+            string orderBy = string.IsNullOrWhiteSpace(ordenar) ? "b.Fecha DESC" : ordenar;
+
+            string sqlCount = $@"
+                SELECT COUNT(*)
+                FROM dbo.Bitacora b LEFT JOIN dbo.Usuario u ON u.IdUsuario = b.UsuarioId
+                {where}";
+
+            string sqlPage = $@"
+                SELECT b.IdBitacora, b.Fecha, b.UsuarioId, u.Usuario AS Usuario,
+                       b.Modulo, b.Accion, b.Severidad, b.Mensaje, b.IP, b.Host
+                FROM dbo.Bitacora b LEFT JOIN dbo.Usuario u ON u.IdUsuario = b.UsuarioId
+                {where}
+                ORDER BY {orderBy}
+                OFFSET {(page - 1) * pageSize} ROWS FETCH NEXT {pageSize} ROWS ONLY;";
+
+            int total;
+            using (var cn = new SqlConnection(Cnn()))
+            using (var cmd = new SqlCommand(sqlCount, cn))
             {
-                where.Append(" AND B.Mensaje LIKE @mensaje");
-                ps.Add(new SqlParameter("@mensaje", $"%{mensaje}%"));
-            }
-            if (severidad.HasValue)
-            {
-                where.Append(" AND B.Severidad = @sev");
-                ps.Add(new SqlParameter("@sev", severidad.Value));
+                cmd.Parameters.AddRange(ps.ToArray());
+                cn.Open();
+                total = Convert.ToInt32(cmd.ExecuteScalar());
             }
 
-            // Sanitizar ORDER BY (whitelist simple)
-            string orderBy = "B.Fecha DESC";
-            if (!string.IsNullOrWhiteSpace(ordenarPor))
-            {
-                var allowed = new HashSet<string>
-                {
-            "B.Fecha ASC","B.Fecha DESC",
-            "U.Usuario ASC","U.Usuario DESC",
-            "B.Severidad ASC","B.Severidad DESC"
-                 };
-                    var wanted = ordenarPor.Trim();
-                if (allowed.Contains(wanted)) orderBy = wanted;
-            }
-
-            // Paginación con CTE
-            int start = (page - 1) * pageSize + 1;
-            int end = page * pageSize;
-
-            string sqlPaged = $@"
-                WITH Paged AS (
-                SELECT ROW_NUMBER() OVER (ORDER BY {orderBy}) AS RowNum, *
-                FROM ({selectCore} {where}) AS InnerQuery
-                )
-                SELECT * FROM Paged WHERE RowNum BETWEEN @start AND @end";
-
-            var psPaged = new List<SqlParameter>(ps)
-                 {
-                 new SqlParameter("@start", start),
-                  new SqlParameter("@end", end)
-                };
-
-            var dtRows = Services.SqlHelpers.GetInstance(_connString).GetDataTable(sqlPaged, psPaged);
-
-            foreach (DataRow dr in dtRows.Rows)
-            {
-                list.Add(new BitacoraEntry
-                {
-                    Id = Convert.ToInt64(dr["IdBitacora"]),
-                    Fecha = Convert.ToDateTime(dr["Fecha"]),
-                    UsuarioId = dr["UsuarioId"] == DBNull.Value ? null : (int?)Convert.ToInt32(dr["UsuarioId"]),
-                    Usuario = dr["Usuario"]?.ToString(),
-                    Modulo = dr["Modulo"]?.ToString(),
-                    Accion = dr["Accion"]?.ToString(),
-                    Severidad = Convert.ToByte(dr["Severidad"]),
-                    Mensaje = dr["Mensaje"]?.ToString(),
-                    IP = dr["IP"]?.ToString(),
-                    Host = dr["Host"]?.ToString()
-                });
-            }
-            string sqlCount = $"SELECT COUNT(1) FROM ({selectCore} {where}) AS C";
-            var dtCount = Services.SqlHelpers.GetInstance(_connString).GetDataTable(sqlCount, ps);
-            if (dtCount.Rows.Count > 0)
-                total = Convert.ToInt32(dtCount.Rows[0][0]);
-
-            return (list, total);
+            var dt = SqlHelpers.GetInstance(Cnn()).GetDataTable(sqlPage, ps);
+            return (dt, total);
         }
-        #endregion
 
-        #region LOOKUP USUARIOS
-        public IList<string> GetUsuarios()
+        public (DataTable Rows, int Total) Search(
+            DateTime? desde, DateTime? hasta,
+            string usuario, string accion, string modulo, int? severidad,
+            int page, int pageSize, string ordenar)
         {
-            const string sql = "SELECT DISTINCT U.Usuario FROM Usuario U INNER JOIN Bitacora B ON U.IdUsuario = B.UsuarioId ORDER BY U.Usuario";
-            var dt = SqlHelpers.GetInstance(_connString).GetDataTable(sql);
+            if (page < 1) page = 1;
+            if (pageSize <= 0) pageSize = 50;
 
-            var result = new List<string>();
-            foreach (DataRow r in dt.Rows)
-                result.Add(r["Usuario"].ToString());
-            return result;
+            var ps = new List<SqlParameter>();
+            var where = new StringBuilder("WHERE 1=1 ");
+
+            if (desde.HasValue) { where.Append("AND b.Fecha >= @d "); ps.Add(new SqlParameter("@d", desde.Value)); }
+            if (hasta.HasValue) { where.Append("AND b.Fecha <= @h "); ps.Add(new SqlParameter("@h", hasta.Value)); }
+            if (!string.IsNullOrWhiteSpace(usuario)) { where.Append("AND (u.Usuario = @u OR u.Mail = @u) "); ps.Add(new SqlParameter("@u", usuario)); }
+            if (!string.IsNullOrWhiteSpace(accion)) { where.Append("AND b.Accion = @ac "); ps.Add(new SqlParameter("@ac", accion)); }
+            if (!string.IsNullOrWhiteSpace(modulo)) { where.Append("AND b.Modulo = @m "); ps.Add(new SqlParameter("@m", modulo)); }
+            if (severidad.HasValue) { where.Append("AND b.Severidad = @sev "); ps.Add(new SqlParameter("@sev", severidad.Value)); }
+
+            string orderBy = string.IsNullOrWhiteSpace(ordenar) ? "b.Fecha DESC" : ordenar;
+
+            string sqlCount = $@"
+                SELECT COUNT(*)
+                FROM dbo.Bitacora b LEFT JOIN dbo.Usuario u ON u.IdUsuario = b.UsuarioId
+                {where}";
+
+            string sqlPage = $@"
+                SELECT b.IdBitacora, b.Fecha, b.UsuarioId, u.Usuario AS Usuario,
+                       b.Modulo, b.Accion, b.Severidad, b.Mensaje, b.IP, b.Host
+                FROM dbo.Bitacora b LEFT JOIN dbo.Usuario u ON u.IdUsuario = b.UsuarioId
+                {where}
+                ORDER BY {orderBy}
+                OFFSET {(page - 1) * pageSize} ROWS FETCH NEXT {pageSize} ROWS ONLY;";
+
+            int total;
+            using (var cn = new SqlConnection(Cnn()))
+            using (var cmd = new SqlCommand(sqlCount, cn))
+            {
+                cmd.Parameters.AddRange(ps.ToArray());
+                cn.Open();
+                total = Convert.ToInt32(cmd.ExecuteScalar());
+            }
+
+            var dt = SqlHelpers.GetInstance(Cnn()).GetDataTable(sqlPage, ps);
+            return (dt, total);
         }
-        #endregion
+
+        // ---------- Para combos/filtros ----------
+        public List<string> GetUsuarios()
+        {
+            // 👇 Ajustado a tu esquema: columna 'Usuario'
+            const string sql = @"
+                SELECT DISTINCT u.Usuario
+                FROM dbo.Usuario u
+                WHERE u.Usuario IS NOT NULL AND LEN(u.Usuario) > 0
+                ORDER BY u.Usuario;";
+
+            var list = new List<string>();
+            using (var cn = new SqlConnection(Cnn()))
+            using (var cmd = new SqlCommand(sql, cn))
+            {
+                cn.Open();
+                using (var dr = cmd.ExecuteReader())
+                    while (dr.Read())
+                        list.Add(dr.GetString(0));
+            }
+            return list;
+        }
+
+        // ---------- Helpers ----------
+        private static void UpsertDVV_tx(SqlConnection cn, SqlTransaction tx, string tabla, string dvv)
+        {
+            const string check = "SELECT COUNT(*) FROM DVV WHERE Tabla = @t";
+            using (var cmd = new SqlCommand(check, cn, tx))
+            {
+                cmd.Parameters.AddWithValue("@t", tabla);
+                int c = Convert.ToInt32(cmd.ExecuteScalar());
+
+                string sql = c > 0
+                    ? "UPDATE DVV SET DVV = @d WHERE Tabla = @t"
+                    : "INSERT INTO DVV (Tabla, DVV) VALUES (@t, @d)";
+
+                using (var up = new SqlCommand(sql, cn, tx))
+                {
+                    up.Parameters.AddWithValue("@t", tabla);
+                    up.Parameters.AddWithValue("@d", (object)dvv ?? DBNull.Value);
+                    up.ExecuteNonQuery();
+                }
+            }
+        }
     }
 }

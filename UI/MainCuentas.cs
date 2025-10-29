@@ -75,29 +75,28 @@ namespace UI
 
         private void ApplySearch()
         {
-            string cliente = (txtCliente.Text ?? "").Trim();
-            string tipo = (cboTipo.SelectedIndex <= 0) ? null : cboTipo.SelectedItem.ToString();
-            string estado = (cboEstado.SelectedIndex <= 0) ? null : cboEstado.SelectedItem.ToString();
+            var cuentas = _svc.Buscar(txtCliente.Text, cboTipo.Text, cboEstado.Text);
 
-            var datos = _svc.Buscar(cliente, tipo, estado);
-
-            var binding = datos.Select(x => new
+            if (cuentas == null || cuentas.Count == 0)
             {
-                x.IdCuenta,
-                x.ClienteId,
-                x.NumeroCuenta,
-                x.TipoCuenta,
-                x.Moneda,
-                EstadoTexto = x.Estado?.Name ?? "", 
-                ClienteNombre = (x.Cliente != null)
-                    ? (x.Cliente.Apellido + ", " + x.Cliente.Nombre)
-                    : ""
-            }).ToList();
+                MessageBox.Show("No hay cuentas para mostrar.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                dgvCuentas.DataSource = null;
+                return;
+            }
 
-            dgvCuentas.DataSource = binding;
+            // 🔹 Ordena antes de enlazar
+            var cuentasOrdenadas = cuentas
+                .OrderBy(c => c.ClienteNombre ?? string.Empty)
+                .ThenByDescending(c => c.IdCuenta)
+                .ToList();
+            var binding = new BindingList<BE.Cuenta>(cuentasOrdenadas);
+            var bs = new BindingSource { DataSource = binding };
 
-            if (dgvCuentas.Columns.Contains("colCliente"))
-                dgvCuentas.Sort(dgvCuentas.Columns["colCliente"], ListSortDirection.Ascending);
+            dgvCuentas.AutoGenerateColumns = false;
+            dgvCuentas.DataSource = bs;
+
+            foreach (DataGridViewColumn col in dgvCuentas.Columns)
+                col.SortMode = DataGridViewColumnSortMode.NotSortable;
         }
 
         private void btnAgregar_Click(object sender, EventArgs e)

@@ -13,17 +13,53 @@ namespace BLL.Services
         private readonly BitacoraDao _bitacora = BitacoraDao.GetInstance();
 
         public int MaxTries { get; set; } = 3;
+
         public Usuario GetById(int id) => _dao.GetById(id);
         public Usuario GetByUserName(string user) => _dao.GetByUserName(user);
         public List<Usuario> GetAll() => _dao.GetAllActive();
+        public List<Usuario> GetAllActive() => _dao.GetAllActive();
+
+        // ====== FIX: usar HashBytes (devuelve byte[]), no strings ======
         public bool CrearConPassword(Usuario u, string plainPassword)
         {
-            (string hash, string salt, int iters) = Svc.PasswordService.Hash(plainPassword);
+            // Hash PBKDF2; tu PasswordService.Hash devuelve (byte[] hash, byte[] salt, int iters)
+            (byte[] hash, byte[] salt, int iters) = Svc.PasswordService.Hash(plainPassword);
+
             u.PasswordHash = hash;
             u.PasswordSalt = salt;
             u.PasswordIterations = iters;
+
+            // primera vez: forzar cambio
+            u.DebeCambiarContraseña = true;
+
             return Crear(u);
         }
+
+        public bool ExisteDocumento(string documento)
+        {
+            if (string.IsNullOrWhiteSpace(documento)) return false;
+            var all = _dao.GetAll();
+            var doc = documento.Trim();
+            return all.Exists(x => !string.IsNullOrWhiteSpace(x.Documento) &&
+                                   x.Documento.Trim().Equals(doc, System.StringComparison.OrdinalIgnoreCase));
+        }
+
+        public void ActualizarPassword(int idUsuario, string nuevaClave, bool obligarCambio = false)
+        {
+            var u = _dao.GetById(idUsuario);
+            if (u == null) return;
+
+            (byte[] hash, byte[] salt, int iters) = Svc.PasswordService.Hash(nuevaClave);
+            u.PasswordHash = hash;
+            u.PasswordSalt = salt;
+            u.PasswordIterations = iters;
+            u.DebeCambiarContraseña = obligarCambio;
+            u.Tries = 0;
+
+            var dvh = new DVH { dvh = Svc.DV.GetDV($"{u.Id}|{u.Tries}|{u.EstadoUsuarioId}") };
+            _dao.Update(u, dvh);
+        }
+        // ===============================================================
 
         public bool Crear(Usuario u)
         {
@@ -46,34 +82,62 @@ namespace BLL.Services
         private static string DvhString(Usuario u)
             => $"{u.Id}|{u.UserName}|{u.Email}|{u.EstadoUsuarioId}|{u.Tries}";
 
-        // --- Autenticación / Seguridad ---
         public bool Login(string userName, string plainPassword, out Usuario usuario)
         {
             usuario = _dao.GetByUserName(userName);
+
+            // Usuario inexistente: no reveles nada
             if (usuario == null)
             {
-                Log(1, null, $"Login fallido (usuario inexistente): {userName}");
+                Log(severidad: 2, userId: null,
+                    mensaje: $"Login fallido (usuario inexistente): {userName}",
+                    accion: "LoginFail");
                 return false;
             }
 
+            // Si ya está bloqueado, no permitas seguir
+            if (usuario.EstadoUsuarioId == EstadosUsuario.Bloqueado)
+            {
+                Log(severidad: 2, userId: usuario.Id,
+                    mensaje: "Intento de login con usuario bloqueado",
+                    accion: "LoginBlocked");
+                return false;
+            }
+
+            // Validación de password
             var ok = _dao.Login(userName, plainPassword);
             if (!ok)
             {
-                usuario.Tries = (usuario.Tries <= 0 ? 0 : usuario.Tries) + 1;
-                if (usuario.Tries >= MaxTries) usuario.EstadoUsuarioId = EstadosUsuario.Bloqueado;
+                // incrementar intentos (nunca negativo)
+                usuario.Tries = Math.Max(0, usuario.Tries) + 1;
 
+                // bloquear si alcanzó el máximo
+                if (usuario.Tries >= MaxTries)
+                    usuario.EstadoUsuarioId = EstadosUsuario.Bloqueado;
+
+                // persistir (DVH mínimo para los campos que tocamos)
                 var dvh = new DVH { dvh = Svc.DV.GetDV($"{usuario.Id}|{usuario.Tries}|{usuario.EstadoUsuarioId}") };
                 _dao.Update(usuario, dvh);
 
-                Log(2, usuario.Id, $"Intento de login fallido (tries={usuario.Tries})");
+                Log(severidad: 2, userId: usuario.Id,
+                    mensaje: $"Intento de login fallido (tries={usuario.Tries}/{MaxTries})",
+                    accion: "LoginFail");
+
                 return false;
             }
 
+            // Password OK: resetear intentos y mantener estado habilitado
             usuario.Tries = 0;
+            if (usuario.EstadoUsuarioId == EstadosUsuario.Bloqueado)
+                usuario.EstadoUsuarioId = EstadosUsuario.Habilitado;
+
             var dvhOk = new DVH { dvh = Svc.DV.GetDV($"{usuario.Id}|{usuario.Tries}|{usuario.EstadoUsuarioId}") };
             _dao.Update(usuario, dvhOk);
 
-            Log(1, usuario.Id, "Login exitoso");
+            Log(severidad: 1, userId: usuario.Id,
+                mensaje: "Login exitoso",
+                accion: "Login");
+
             return true;
         }
 
@@ -84,23 +148,29 @@ namespace BLL.Services
 
             u.EstadoUsuarioId = EstadosUsuario.Habilitado;
             u.Tries = 0;
+
             var dvh = new DVH { dvh = Svc.DV.GetDV($"{u.Id}|{u.Tries}|{u.EstadoUsuarioId}") };
             _dao.Update(u, dvh);
 
-            Log(1, u.Id, "Usuario desbloqueado por administrador");
+            Log(severidad: 1, userId: u.Id,
+                mensaje: "Usuario desbloqueado por administrador",
+                accion: "Unblock");
         }
 
-        private void Log(int criticidad, int? userId, string desc)
+        private void Log(int severidad, int? userId, string mensaje, string accion, string modulo = "Seguridad")
         {
-            _bitacora.Add(new BE.Bitacora
-            {
-                Criticidad = new BE.Criticidad(criticidad),
-                Usuario = userId.HasValue ? new BE.Usuario { Id = userId.Value } : null,
-                Descripcion = desc,
-                Fecha = DateTime.UtcNow
-            }, new DVH { dvh = Svc.DV.GetDV($"{criticidad}|{userId}|{desc}|{DateTime.UtcNow:O}") });
+            _bitacora.Add(
+                usuarioId: userId,
+                modulo: modulo,
+                accion: accion,
+                severidad: severidad,
+                mensaje: mensaje,
+                ip: null,
+                host: Environment.MachineName,
+                fecha: DateTime.Now
+            );
         }
-    
+
         public Usuario ObtenerPorId(int id) => GetById(id);
 
         public bool ExisteUsername(string username)
@@ -115,6 +185,5 @@ namespace BLL.Services
             return all.Exists(x => !string.IsNullOrWhiteSpace(x.Email) &&
                                    x.Email.Trim().ToLower() == email?.Trim().ToLower());
         }
-
     }
 }
