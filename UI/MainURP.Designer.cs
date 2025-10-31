@@ -38,7 +38,7 @@
             this.kryptonGroupBox2.Panel.Controls.Add(this.btnPermisos);
             this.kryptonGroupBox2.Panel.Controls.Add(this.btnRoles);
             this.kryptonGroupBox2.Panel.Controls.Add(this.btnUsuarios);
-            this.kryptonGroupBox2.Size = new System.Drawing.Size(285, 513);
+            this.kryptonGroupBox2.Size = new System.Drawing.Size(285, 499);
             this.kryptonGroupBox2.TabIndex = 0;
             // 
             // btnPermisos
@@ -85,7 +85,7 @@
             this.panel1.Dock = System.Windows.Forms.DockStyle.Top;
             this.panel1.Location = new System.Drawing.Point(0, 0);
             this.panel1.Name = "panel1";
-            this.panel1.Size = new System.Drawing.Size(1102, 56);
+            this.panel1.Size = new System.Drawing.Size(1106, 56);
             this.panel1.TabIndex = 1;
             // 
             // labelTitulo
@@ -103,7 +103,7 @@
             this.btnPerfil.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.btnPerfil.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnPerfil.Font = new System.Drawing.Font("Segoe UI Semibold", 9F);
-            this.btnPerfil.Location = new System.Drawing.Point(1792, 12);
+            this.btnPerfil.Location = new System.Drawing.Point(1796, 12);
             this.btnPerfil.Name = "btnPerfil";
             this.btnPerfil.Size = new System.Drawing.Size(190, 32);
             this.btnPerfil.TabIndex = 1;
@@ -114,7 +114,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1102, 569);
+            this.ClientSize = new System.Drawing.Size(1106, 555);
             this.Controls.Add(this.kryptonGroupBox2);
             this.Controls.Add(this.panel1);
             this.Name = "MainURP";

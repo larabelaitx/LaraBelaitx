@@ -9,7 +9,6 @@ using Services;
 
 namespace UI
 {
-    public enum ModoForm { Alta, Editar, Ver }
 
     public partial class AltaUsuario : KryptonForm
     {

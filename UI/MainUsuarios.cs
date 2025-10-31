@@ -25,79 +25,86 @@ namespace UI
             _svcUsuarios = usuarios ?? throw new ArgumentNullException(nameof(usuarios));
             _svcRoles = roles ?? throw new ArgumentNullException(nameof(roles));
 
-            // Eventos
-            this.Load += MainUsuarios_Load;
+            Load += MainUsuarios_Load;
             btnBuscar.Click += (s, e) => Refrescar();
             btnLimpiar.Click += (s, e) => LimpiarFiltros();
             btnDescargar.Click += (s, e) => DescargarCsv();
-            btnVolver.Click += btnVolver_Click;
+            btnVolver.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
+            btnAgregarr.Click += (s, e) => AbrirAltaUsuario(ModoForm.Alta, null);
 
-            // ¡IMPORTANTE! Usamos tu botón “doble r”
-            btnAgregarr.Click += btnAgregarr_Click;
-
-            dgvUsuarios.CellContentClick += dgvUsuarios_CellContentClick;
             dgvUsuarios.CellFormatting += dgvUsuarios_CellFormatting;
+            dgvUsuarios.CellContentClick += dgvUsuarios_CellContentClick;
 
+            FixScrollListado();
             ConfigurarGrid();
         }
 
         private void MainUsuarios_Load(object sender, EventArgs e)
         {
             CargarCombos();
-            MapearColumnas();   // <-- AGREGADO: mapea columnas del grid a UsuarioVM
+            MapearColumnas();
             Refrescar();
         }
 
-        // ---------- UI helpers ----------
-        private void CargarCombos()
+        private void FixScrollListado()
         {
-            var estados = new List<ItemComboEstado>
-            {
-                new ItemComboEstado { Texto = "Todos",    Valor = null },
-                new ItemComboEstado { Texto = "Activo",   Valor = true },
-                new ItemComboEstado { Texto = "Inactivo", Valor = false }
-            };
+            var p1 = dgvUsuarios != null ? dgvUsuarios.Parent as Panel : null;
+            if (p1 != null) p1.AutoScroll = true;
 
-            cboEstado.DisplayMember = nameof(ItemComboEstado.Texto);
-            cboEstado.ValueMember = nameof(ItemComboEstado.Valor);
-            cboEstado.DataSource = estados;
+            var kp = dgvUsuarios != null ? dgvUsuarios.Parent as KryptonPanel : null;
+            if (kp != null) kp.AutoScroll = true;
 
-            var roles = _svcRoles.ListarRoles()
-                                 .OrderBy(r => r.Name)
-                                 .Select(r => new ItemComboRol { Id = r.Id, Nombre = r.Name })
-                                 .ToList();
-            roles.Insert(0, new ItemComboRol { Id = null, Nombre = "Todos" });
-
-            cboRol.DisplayMember = nameof(ItemComboRol.Nombre);
-            cboRol.ValueMember = nameof(ItemComboRol.Id);
-            cboRol.DataSource = roles;
+            dgvUsuarios.Dock = DockStyle.Fill;
+            dgvUsuarios.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            dgvUsuarios.ScrollBars = ScrollBars.Both;
+            dgvUsuarios.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells;
+            dgvUsuarios.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
         }
 
         private void ConfigurarGrid()
         {
-            dgvUsuarios.AutoGenerateColumns = false;
-            dgvUsuarios.ReadOnly = true;
-            dgvUsuarios.AllowUserToAddRows = false;
-            dgvUsuarios.AllowUserToDeleteRows = false;
-            dgvUsuarios.MultiSelect = false;
-            dgvUsuarios.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvUsuarios.RowHeadersVisible = false;
-            dgvUsuarios.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells;
+            var g = dgvUsuarios;
+            g.AutoGenerateColumns = false;
+            g.ReadOnly = true;
+            g.AllowUserToAddRows = false;
+            g.AllowUserToDeleteRows = false;
+            g.MultiSelect = false;
+            g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            g.RowHeadersVisible = false;
 
-            // El diseñador ya define Nombre/Apellido/Usuario/Mail/Estado/Rol y los botones.
-            // Sólo agregamos la columna "Roles" si no existe.
-            if (!dgvUsuarios.Columns.Contains("colRoles"))
+            AddBtn("btnVer", "Ver", 60);
+            AddBtn("btnEditar", "Editar", 70);
+            AddBtn("btnBaja", "Baja", 60);
+            AddBtn("btnReactivar", "Reactivar", 90);
+
+            if (!g.Columns.Contains("colRoles"))
             {
-                dgvUsuarios.Columns.Add(new DataGridViewButtonColumn
+                var col = new DataGridViewButtonColumn
                 {
                     Name = "colRoles",
                     HeaderText = "Roles",
-                    Text = "Roles (0)",
                     UseColumnTextForButtonValue = false,
-                    Width = 100
+                    Width = 110,
+                    MinimumWidth = 110
+                };
+                g.Columns.Add(col);
+            }
+
+            void AddBtn(string name, string text, int w)
+            {
+                if (g.Columns.Contains(name)) return;
+                g.Columns.Add(new DataGridViewButtonColumn
+                {
+                    Name = name,
+                    HeaderText = text,
+                    Text = text,
+                    UseColumnTextForButtonValue = true,
+                    Width = w,
+                    MinimumWidth = w
                 });
             }
         }
+
         private void MapearColumnas()
         {
             SetDP("Usuario", nameof(UsuarioVM.Usuario));
@@ -111,17 +118,37 @@ namespace UI
             {
                 var col = dgvUsuarios.Columns
                     .Cast<DataGridViewColumn>()
-                    .FirstOrDefault(c =>
-                        string.Equals((c.HeaderText ?? "").Trim(), headerText, StringComparison.OrdinalIgnoreCase));
+                    .FirstOrDefault(c => string.Equals((c.HeaderText ?? "").Trim(), headerText, StringComparison.OrdinalIgnoreCase));
                 if (col != null) col.DataPropertyName = prop;
             }
         }
 
+        private void CargarCombos()
+        {
+            var estados = new List<ItemComboEstado>
+            {
+                new ItemComboEstado { Texto = "Todos",    Valor = null },
+                new ItemComboEstado { Texto = "Activo",   Valor = true },
+                new ItemComboEstado { Texto = "Inactivo", Valor = false }
+            };
+            cboEstado.DisplayMember = nameof(ItemComboEstado.Texto);
+            cboEstado.ValueMember = nameof(ItemComboEstado.Valor);
+            cboEstado.DataSource = estados;
+
+            var roles = _svcRoles.ListarRoles()
+                                 .OrderBy(r => r.Name)
+                                 .Select(r => new ItemComboRol { Id = r.Id, Nombre = r.Name })
+                                 .ToList();
+            roles.Insert(0, new ItemComboRol { Id = null, Nombre = "Todos" });
+            cboRol.DisplayMember = nameof(ItemComboRol.Nombre);
+            cboRol.ValueMember = nameof(ItemComboRol.Id);
+            cboRol.DataSource = roles;
+        }
+
         private void Refrescar()
         {
-            // Traigo TODOS los usuarios y excluyo únicamente las bajas (IdEstado = 3)
             var modelo = _svcUsuarios.GetAll()
-                .Where(u => u.EstadoUsuarioId != 3) // <-- sólo oculto bajas
+                .Where(u => u.EstadoUsuarioId != 3)
                 .Select(u => new UsuarioVM
                 {
                     Id = u.Id,
@@ -130,25 +157,20 @@ namespace UI
                     Nombre = u.Name,
                     Mail = u.Email,
                     Rol = ExtraerRolPrincipal(u),
-                    Estado = u.EstadoDisplay   // debe devolver: "Habilitado" / "Bloqueado" / "Baja"
+                    Estado = u.EstadoDisplay
                 });
 
-            var filtrado = AplicarFiltros(modelo);
-            _view = new BindingList<UsuarioVM>(filtrado.ToList());
+            var filtrado = AplicarFiltros(modelo).ToList();
+            _view = new BindingList<UsuarioVM>(filtrado);
             dgvUsuarios.DataSource = _view;
 
             if (dgvUsuarios.Columns.Contains("Mail"))
                 dgvUsuarios.Columns["Mail"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
         }
 
-        private string RolPrincipal(int idUsuario)
-        {
-            var familias = _svcRoles.GetFamiliasUsuario(idUsuario) ?? new List<Familia>();
-            return familias.Count > 0 ? familias[0].Name : "(sin rol)";
-        }
         private IEnumerable<UsuarioVM> AplicarFiltros(IEnumerable<UsuarioVM> origen)
         {
-            string norm(string s)
+            Func<string, string> norm = s =>
             {
                 if (string.IsNullOrWhiteSpace(s)) return string.Empty;
                 var n = s.Normalize(NormalizationForm.FormD);
@@ -156,8 +178,9 @@ namespace UI
                 foreach (var ch in n)
                     if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark) sb.Append(ch);
                 return sb.ToString().ToLowerInvariant().Trim();
-            }
-            bool Match(string fuente, string filtro) =>
+            };
+
+            Func<string, string, bool> Match = (fuente, filtro) =>
                 string.IsNullOrEmpty(filtro) || norm(fuente).Contains(filtro);
 
             var fUsuario = norm(txtUsuario.Text);
@@ -165,10 +188,7 @@ namespace UI
             var fApellido = norm(txtApellido.Text);
             var fMail = norm(txtMail.Text);
 
-            // Combo: Todos / Activo / Inactivo
             bool? fActivo = (cboEstado.SelectedItem as ItemComboEstado)?.Valor;
-
-            // Combo rol
             int? fRolId = (cboRol.SelectedItem as ItemComboRol)?.Id;
 
             var q = origen;
@@ -178,58 +198,30 @@ namespace UI
             if (!string.IsNullOrEmpty(fApellido)) q = q.Where(x => Match(x.Apellido, fApellido));
             if (!string.IsNullOrEmpty(fMail)) q = q.Where(x => Match(x.Mail, fMail));
 
-            // ⬇️ Filtrado de estado SIN contemplar "Baja" (ya no viene en GetAllActive)
             if (fActivo.HasValue)
             {
                 if (fActivo.Value)
-                {
-                    // Activo => Habilitado
                     q = q.Where(x => x.Estado.Equals("Habilitado", StringComparison.OrdinalIgnoreCase));
-                }
                 else
-                {
-                    // Inactivo => incluye Inactivo o Bloqueado
-                    q = q.Where(x =>
-                        x.Estado.Equals("Inactivo", StringComparison.OrdinalIgnoreCase) ||
-                        x.Estado.Equals("Bloqueado", StringComparison.OrdinalIgnoreCase));
-                }
+                    q = q.Where(x => x.Estado.Equals("Inactivo", StringComparison.OrdinalIgnoreCase) ||
+                                     x.Estado.Equals("Bloqueado", StringComparison.OrdinalIgnoreCase));
             }
 
-            // Filtro por rol (si elegiste uno en el combo)
             if (fRolId.HasValue)
-            {
                 q = q.Where(x =>
                 {
                     var familias = _svcRoles.GetFamiliasUsuario(x.Id) ?? new List<Familia>();
                     return familias.Any(f => f.Id == fRolId.Value);
                 });
-            }
 
             return q;
         }
 
-        private string ExtraerRolPrincipal(Usuario u)
+        private static string ExtraerRolPrincipal(Usuario u)
         {
-            if (u?.Permisos == null || u.Permisos.Count == 0) return "(sin rol)";
+            if (u == null || u.Permisos == null || u.Permisos.Count == 0) return "(sin rol)";
             var familia = u.Permisos.FirstOrDefault(p => p != null && p.GetType().Name == "Familia");
             return familia != null ? familia.Name : "(sin rol)";
-        }
-
-        private string RolPrincipalPorServicio(int idUsuario)
-        {
-            var familias = _svcRoles.GetFamiliasUsuario(idUsuario) ?? new List<Familia>();
-            return familias.Count > 0 ? familias[0].Name : "(sin rol)";
-        }
-
-        private void LimpiarFiltros()
-        {
-            txtUsuario.Clear();
-            txtNombre.Clear();
-            txtApellido.Clear();
-            txtMail.Clear();
-            cboEstado.SelectedIndex = 0;
-            cboRol.SelectedIndex = 0;
-            Refrescar();
         }
 
         private void AbrirAltaUsuario(ModoForm modo, int? idUsuario)
@@ -245,35 +237,20 @@ namespace UI
             }
             catch (Exception ex)
             {
-                KryptonMessageBox.Show(
-                    "No se pudo abrir AltaUsuario.\n\n" + ex.Message,
-                    "Error",
-                    KryptonMessageBoxButtons.OK,
-                    KryptonMessageBoxIcon.Error
-                );
+                KryptonMessageBox.Show("No se pudo abrir AltaUsuario.\n\n" + ex.Message,
+                    "Error", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
             }
-        }
-
-        private void btnAgregarr_Click(object sender, EventArgs e)
-        {
-            AbrirAltaUsuario(ModoForm.Alta, null);
-        }
-
-        private void btnVolver_Click(object sender, EventArgs e)
-        {
-            this.DialogResult = DialogResult.Cancel;   // o DialogResult.OK si preferís
-            this.Close();
         }
 
         private void dgvUsuarios_CellContentClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
 
-            var colName = dgvUsuarios.Columns[e.ColumnIndex].Name;
+            var col = dgvUsuarios.Columns[e.ColumnIndex].Name;
             var vm = dgvUsuarios.Rows[e.RowIndex].DataBoundItem as UsuarioVM;
             if (vm == null) return;
 
-            switch (colName)
+            switch (col)
             {
                 case "btnVer":
                     AbrirAltaUsuario(ModoForm.Ver, vm.Id);
@@ -308,8 +285,7 @@ namespace UI
                 case "colRoles":
                     {
                         var usuario = _svcUsuarios.GetById(vm.Id);
-                        var idsActuales = (_svcRoles.GetFamiliasUsuario(vm.Id) ?? new List<Familia>())
-                                          .Select(f => f.Id);
+                        var idsActuales = (_svcRoles.GetFamiliasUsuario(vm.Id) ?? new List<Familia>()).Select(f => f.Id);
                         using (var dlg = new DialogRolesUsuario(usuario, idsActuales))
                         {
                             if (dlg.ShowDialog(this) == DialogResult.OK)
@@ -327,31 +303,41 @@ namespace UI
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
 
-            var col = dgvUsuarios.Columns[e.ColumnIndex].Name;
+            var name = dgvUsuarios.Columns[e.ColumnIndex].Name;
             var vm = dgvUsuarios.Rows[e.RowIndex].DataBoundItem as UsuarioVM;
             if (vm == null) return;
 
-            if (col == "colRoles")
+            if (name == "colRoles")
             {
                 var familias = _svcRoles.GetFamiliasUsuario(vm.Id) ?? new List<Familia>();
-                dgvUsuarios.Rows[e.RowIndex].Cells[e.ColumnIndex].Value = $"Roles ({familias.Count})";
+                dgvUsuarios.Rows[e.RowIndex].Cells[e.ColumnIndex].Value = "Roles (" + familias.Count + ")";
                 return;
             }
 
-            if (col == "btnReactivar")
+            if (name == "btnReactivar")
             {
-                if (dgvUsuarios.Rows[e.RowIndex].Cells[e.ColumnIndex] is DataGridViewButtonCell cell)
+                var cell = dgvUsuarios.Rows[e.RowIndex].Cells[e.ColumnIndex] as DataGridViewButtonCell;
+                if (cell != null)
                 {
-                    // ⬇️ Mostrar "Reactivar" tanto para Bloqueado como para Inactivo
-                    bool mostrarReactivar =
+                    bool mostrar =
                         vm.Estado.Equals("Bloqueado", StringComparison.OrdinalIgnoreCase) ||
                         vm.Estado.Equals("Inactivo", StringComparison.OrdinalIgnoreCase);
 
-                    cell.Value = mostrarReactivar ? "Reactivar" : "—";
-                    cell.FlatStyle = FlatStyle.Standard;
-                    cell.ReadOnly = !mostrarReactivar;
+                    cell.Value = mostrar ? "Reactivar" : "—";
+                    cell.ReadOnly = !mostrar;
                 }
             }
+        }
+
+        private void LimpiarFiltros()
+        {
+            txtUsuario.Clear();
+            txtNombre.Clear();
+            txtApellido.Clear();
+            txtMail.Clear();
+            cboEstado.SelectedIndex = 0;
+            cboRol.SelectedIndex = 0;
+            Refrescar();
         }
 
         private void DescargarCsv()
@@ -365,7 +351,7 @@ namespace UI
             using (var sfd = new SaveFileDialog
             {
                 Filter = "CSV (separado por comas)|*.csv",
-                FileName = $"Usuarios_{DateTime.Now:yyyyMMdd_HHmm}.csv"
+                FileName = "Usuarios_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
             })
             {
                 if (sfd.ShowDialog() != DialogResult.OK) return;
@@ -375,34 +361,19 @@ namespace UI
                 sb.AppendLine(string.Join(sep, new[] { "Usuario", "Apellido", "Nombre", "Mail", "Rol", "Estado" }));
                 foreach (var u in _view)
                 {
-                    string Esc(string s) => "\"" + (s ?? string.Empty).Replace("\"", "\"\"") + "\"";
-                    sb.AppendLine(string.Join(sep, new[] { Esc(u.Usuario), Esc(u.Apellido), Esc(u.Nombre), Esc(u.Mail), Esc(u.Rol), Esc(u.Estado) }));
+                    Func<string, string> Esc = s => "\"" + (s ?? string.Empty).Replace("\"", "\"\"") + "\"";
+                    sb.AppendLine(string.Join(sep, new[]
+                    {
+                        Esc(u.Usuario), Esc(u.Apellido), Esc(u.Nombre), Esc(u.Mail), Esc(u.Rol), Esc(u.Estado)
+                    }));
                 }
                 File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
             }
 
             KryptonMessageBox.Show("Archivo exportado correctamente.", "Éxito");
         }
-
-        private void AplicarModo(ModoForm modo)
-        {
-            bool soloLectura = (modo == ModoForm.Ver);
-
-            txtNombre.ReadOnly = soloLectura;
-            txtApellido.ReadOnly = soloLectura;
-            txtUsuario.ReadOnly = soloLectura;
-            txtMail.ReadOnly = soloLectura;
-            cboEstado.Enabled = !soloLectura;
-            cboRol.Enabled = !soloLectura;
-
-            btnVolver.Enabled = true;    // <- SIEMPRE habilitado
-        }
-
-        private void panel1_Paint(object sender, PaintEventArgs e)
-        {
-
-        }
     }
+
     public class UsuarioVM
     {
         public int Id { get; set; }

@@ -5,7 +5,6 @@ using System.Linq;
 using System.Security.Cryptography;
 using BE;
 using DAL.Mappers;
-using Services;
 
 namespace DAL
 {
@@ -27,7 +26,7 @@ namespace DAL
         private static object DbOrNull(string value)
             => string.IsNullOrWhiteSpace(value) ? (object)DBNull.Value : value;
 
-        #region CRUD USUARIO
+        #region CRUD USUARIO (lecturas)
         public Usuario GetById(int idUsuario)
         {
             const string query = @"
@@ -42,20 +41,6 @@ namespace DAL
 
             return MPUsuario.GetInstance()
                 .MapUser(SqlHelpers.GetInstance(Cnn).GetDataTable(query, param));
-        }
-
-        // Convierte string base64 o null a varbinary (byte[])
-        private static object ToDbVarbinary(object value)
-        {
-            if (value == null) return DBNull.Value;
-            if (value is byte[] bytes) return bytes;
-            if (value is string s)
-            {
-                if (string.IsNullOrWhiteSpace(s)) return DBNull.Value;
-                try { return Convert.FromBase64String(s); }
-                catch { return DBNull.Value; }
-            }
-            return DBNull.Value;
         }
 
         public Usuario GetByUserName(string username)
@@ -77,11 +62,11 @@ namespace DAL
         public List<Usuario> GetAll()
         {
             const string query = @"
-                SELECT IdUsuario, IdIdioma, IdEstado, Nombre, Usuario, Apellido,
-                       Mail, Documento, PasswordHash, PasswordSalt, PasswordIterations,
-                       NroIntentos, DVH, BloqueadoHastaUtc, UltimoLoginUtc,
-                       DebeCambiarContrasena
-                FROM Usuario;";
+            SELECT IdUsuario, IdIdioma, IdEstado, Nombre, Usuario, Apellido,
+                   Mail, Documento, PasswordHash, PasswordSalt, PasswordIterations,
+                   NroIntentos, DVH, BloqueadoHastaUtc, UltimoLoginUtc,
+                   DebeCambiarContrasena
+            FROM Usuario";
 
             return MPUsuario.GetInstance()
                 .Map(SqlHelpers.GetInstance(Cnn).GetDataTable(query));
@@ -100,17 +85,19 @@ namespace DAL
             return MPUsuario.GetInstance()
                 .Map(SqlHelpers.GetInstance(Cnn).GetDataTable(query));
         }
+        #endregion
 
+        #region CRUD USUARIO (altas / modificaciones / bajas)
         public bool Add(Usuario usuario, DVH dvh)
         {
-                    const string checkPrev = @"
+            const string checkPrev = @"
                 SELECT COUNT(*)
                 FROM dbo.Usuario
                 WHERE Usuario = @username
                    OR (Mail = @mail AND @mail IS NOT NULL)
                    OR (Documento = @doc AND @doc IS NOT NULL);";
 
-                    const string insert = @"
+            const string insert = @"
                 INSERT INTO dbo.Usuario
                     (IdEstado, IdIdioma, Usuario,
                      PasswordHash, PasswordSalt, PasswordIterations,
@@ -127,16 +114,16 @@ namespace DAL
                 checkPrev,
                 new List<SqlParameter>
                 {
-            new SqlParameter("@username", usuario.UserName),
-            new SqlParameter("@mail", (object)usuario.Email ?? DBNull.Value),
-            new SqlParameter("@doc",  (object)usuario.Documento ?? DBNull.Value)
+                    new SqlParameter("@username", usuario.UserName),
+                    new SqlParameter("@mail", (object)usuario.Email ?? DBNull.Value),
+                    new SqlParameter("@doc",  (object)usuario.Documento ?? DBNull.Value)
                 });
 
             if (Convert.ToInt32(exists) > 0)
                 throw new Exception("Usuario, Mail o Documento ya existente.");
 
             // --- Parámetros del INSERT ---
-                    var ps = new List<SqlParameter>
+            var ps = new List<SqlParameter>
             {
                 new SqlParameter("@IdEstado", usuario.EstadoUsuarioId > 0 ? usuario.EstadoUsuarioId : 1),
                 new SqlParameter("@IdIdioma", (object)(usuario.IdiomaId ?? 1)),
@@ -168,69 +155,55 @@ namespace DAL
 
         public bool Update(Usuario usuario, DVH dvh)
         {
-            // Validación de duplicados (excluyendo al propio usuario)
-            const string checkDup = @"
-        SELECT COUNT(*)
-        FROM dbo.Usuario
-        WHERE IdUsuario <> @IdUsuario
-          AND (
-                (Mail = @Mail AND @Mail IS NOT NULL)
-             OR (Documento = @Documento AND @Documento IS NOT NULL)
-          );";
+            // --------- Validaciones previas de unicidad (sin GetAll) ----------
+            if (!string.IsNullOrWhiteSpace(usuario.Documento) &&
+                ExisteDocumento(usuario.Documento.Trim(), excluirId: usuario.Id))
+                throw new Exception("El documento ya está en uso por otro usuario.");
 
-            var dup = SqlHelpers.GetInstance(Cnn).ExecuteScalar(
-                checkDup,
-                new List<SqlParameter>
-                {
-            new SqlParameter("@IdUsuario", usuario.Id),
-            new SqlParameter("@Mail",      (object)usuario.Email ?? DBNull.Value),
-            new SqlParameter("@Documento", (object)usuario.Documento ?? DBNull.Value)
-                });
-
-            if (Convert.ToInt32(dup) > 0)
-                throw new Exception("Mail o Documento ya está en uso por otro usuario.");
+            if (!string.IsNullOrWhiteSpace(usuario.Email) &&
+                ExisteEmail(usuario.Email.Trim(), excluirId: usuario.Id))
+                throw new Exception("El mail ya está en uso por otro usuario.");
+            // -------------------------------------------------------------------
 
             const string sql = @"
-        UPDATE dbo.Usuario
-        SET
-            Usuario                = @Usuario,
-            Nombre                 = @Nombre,
-            Apellido               = @Apellido,
-            Mail                   = @Mail,
-            Documento              = @Documento,
-
-            -- Si mandás NULL, conserva lo que ya está en la tabla
-            PasswordHash           = COALESCE(@PasswordHash,       PasswordHash),
-            PasswordSalt           = COALESCE(@PasswordSalt,       PasswordSalt),
-            PasswordIterations     = COALESCE(@PasswordIterations, PasswordIterations),
-
-            IdEstado               = @IdEstado,
-            IdIdioma               = COALESCE(@IdIdioma, IdIdioma),
-            NroIntentos            = @NroIntentos,
-            DVH                    = @DVH,
-            DebeCambiarContrasena  = @DebeCambiarContrasena
-        WHERE IdUsuario = @IdUsuario;";
+    UPDATE dbo.Usuario
+       SET Usuario                = @Usuario,
+           Nombre                 = @Nombre,
+           Apellido               = @Apellido,
+           Mail                   = @Mail,
+           Documento              = @Documento,
+           -- Si mandás NULL en estos, conserva lo que hay
+           PasswordHash           = COALESCE(@PasswordHash,       PasswordHash),
+           PasswordSalt           = COALESCE(@PasswordSalt,       PasswordSalt),
+           PasswordIterations     = COALESCE(@PasswordIterations, PasswordIterations),
+           IdEstado               = @IdEstado,
+           IdIdioma               = COALESCE(@IdIdioma, IdIdioma),
+           NroIntentos            = @NroIntentos,
+           DVH                    = @DVH,
+           DebeCambiarContrasena  = @DebeCambiarContrasena
+     WHERE IdUsuario = @IdUsuario;";
 
             var ps = new List<SqlParameter>
-    {
-        new SqlParameter("@IdUsuario", usuario.Id),
-        new SqlParameter("@Usuario",   usuario.UserName),
-        new SqlParameter("@Nombre",    DbOrNull(usuario.Name)),
-        new SqlParameter("@Apellido",  DbOrNull(usuario.LastName)),
-        new SqlParameter("@Mail",      DbOrNull(usuario.Email)),
-        new SqlParameter("@Documento", DbOrNull(usuario.Documento)),
+            {
+                new SqlParameter("@IdUsuario", usuario.Id),
+                new SqlParameter("@Usuario",   usuario.UserName),
+                new SqlParameter("@Nombre",    DbOrNull(usuario.Name)),
+                new SqlParameter("@Apellido",  DbOrNull(usuario.LastName)),
+                new SqlParameter("@Mail",      DbOrNull(usuario.Email)),
+                new SqlParameter("@Documento", DbOrNull(usuario.Documento)),
 
-        VarBinaryParam("@PasswordHash", usuario.PasswordHash, 32),
-        VarBinaryParam("@PasswordSalt", usuario.PasswordSalt, 16),
-        new SqlParameter("@PasswordIterations",
-            usuario.PasswordIterations > 0 ? (object)usuario.PasswordIterations : DBNull.Value),
+                // VARBINARY (deja NULL si no querés tocar la clave)
+                VarBinaryParam("@PasswordHash", usuario.PasswordHash, 32),
+                VarBinaryParam("@PasswordSalt", usuario.PasswordSalt, 16),
+                new SqlParameter("@PasswordIterations",
+                    usuario.PasswordIterations > 0 ? (object)usuario.PasswordIterations : DBNull.Value),
 
-        new SqlParameter("@IdEstado",    usuario.EstadoUsuarioId),
-        new SqlParameter("@IdIdioma",    DbOrNull(usuario.IdiomaId)),
-        new SqlParameter("@NroIntentos", usuario.Tries),
-        new SqlParameter("@DVH",         dvh?.dvh ?? (object)DBNull.Value),
-        new SqlParameter("@DebeCambiarContrasena", usuario.DebeCambiarContraseña)
-    };
+                new SqlParameter("@IdEstado",    usuario.EstadoUsuarioId),
+                new SqlParameter("@IdIdioma",    DbOrNull(usuario.IdiomaId)),
+                new SqlParameter("@NroIntentos", usuario.Tries),
+                new SqlParameter("@DVH",         dvh?.dvh ?? (object)DBNull.Value),
+                new SqlParameter("@DebeCambiarContrasena", usuario.DebeCambiarContraseña)
+            };
 
             int rows = SqlHelpers.GetInstance(Cnn).ExecuteQuery(sql, ps);
             if (rows > 0)
@@ -244,24 +217,21 @@ namespace DAL
 
         public bool Delete(Usuario usuario, DVH dvh)
         {
-            const string query =
-                "UPDATE Usuario SET IdEstado = 3, DVH = @DVH WHERE IdUsuario = @IdUsuario";
+            // 1) No borrar el último usuario activo
+            const string qCountActivos = "SELECT COUNT(*) FROM dbo.Usuario WHERE IdEstado <> 3";
+            int activos = Convert.ToInt32(SqlHelpers.GetInstance(Cnn).ExecuteScalar(qCountActivos));
+            if (activos <= 1)
+                throw new Exception("No se puede eliminar: quedaría el sistema sin usuarios.");
 
-            // Evitar patentes huérfanas
-            HashSet<Permiso> patentes = PatenteDao.GetInstance().GetPatentesUsuario(usuario.Id);
-            foreach (Permiso p in patentes)
-            {
-                if (!PatenteDao.GetInstance().CheckPatenteAsing(p.Id))
-                    throw new Exception($"No se puede eliminar. Patente {p.Name} quedaría sin asignar.");
-            }
-
-            var sqlParams = new List<SqlParameter>
+            // 2) Baja lógica
+            const string query = "UPDATE Usuario SET IdEstado = 3, DVH = @DVH WHERE IdUsuario = @IdUsuario";
+            var ps = new List<SqlParameter>
             {
                 new SqlParameter("@IdUsuario", usuario.Id),
                 new SqlParameter("@DVH", dvh?.dvh ?? (object)DBNull.Value)
             };
 
-            int rows = SqlHelpers.GetInstance(Cnn).ExecuteQuery(query, sqlParams);
+            int rows = SqlHelpers.GetInstance(Cnn).ExecuteQuery(query, ps);
             if (rows > 0)
             {
                 DVVDao.GetInstance().AddUpdateDVV(
@@ -293,30 +263,76 @@ namespace DAL
 
             return Services.PasswordService.Verify(plainPassword, hash, salt, iters);
         }
+        #endregion
 
-        // PBKDF2 – comparación constante en byte[]
-        private static bool VerifyPasswordBytes(string plain, byte[] salt, int iterations, byte[] expected)
+        public void MarcarUltimoLoginExitoso(int idUsuario, DateTime utcNow, DVH dvh)
         {
-            if (salt == null || expected == null || iterations <= 0) return false;
+            const string sql = @"
+        UPDATE dbo.Usuario
+           SET UltimoLoginUtc = @dtUtc,
+               -- reseteo de intentos
+               NroIntentos = 0,
+               -- si estaba bloqueado (2), pasa a habilitado (1); si no, deja como está
+               IdEstado = CASE WHEN IdEstado = 2 THEN 1 ELSE IdEstado END,
+               DVH = @DVH
+         WHERE IdUsuario = @IdUsuario;";
 
-            using (var pbkdf2 = new Rfc2898DeriveBytes(plain, salt, iterations, HashAlgorithmName.SHA256))
+            using (var cn = DAL.ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
             {
-                byte[] computed = pbkdf2.GetBytes(expected.Length);
-                if (computed.Length != expected.Length) return false;
-                int diff = 0;
-                for (int i = 0; i < expected.Length; i++)
-                    diff |= computed[i] ^ expected[i];
-                return diff == 0;
+                cmd.Parameters.AddWithValue("@dtUtc", utcNow);
+                cmd.Parameters.AddWithValue("@DVH", (object)dvh?.dvh ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@IdUsuario", idUsuario);
+                cmd.ExecuteNonQuery();
             }
+
+            // Recalcular DVV de la tabla Usuario
+            var dvv = DVVDao.GetInstance().CalculateDVV("Usuario");
+            DVVDao.GetInstance().AddUpdateDVV(new DVV { tabla = "Usuario", dvv = dvv });
         }
-        #endregion
 
-        #region ICRUD (no usados directamente)
-        public bool Add(Usuario alta) { throw new NotImplementedException(); }
-        public bool Update(Usuario update) { throw new NotImplementedException(); }
-        public bool Delete(Usuario baja) { throw new NotImplementedException(); }
-        #endregion
+        #region Unicidad (Documento / Email)
+        public bool ExisteDocumento(string documento, int? excluirId = null)
+        {
+            const string sql = @"
+        SELECT COUNT(*)
+        FROM dbo.Usuario
+        WHERE Documento = @doc
+          AND @doc IS NOT NULL
+          AND (@id IS NULL OR IdUsuario <> @id);";
 
+            var count = SqlHelpers.GetInstance(Cnn).ExecuteScalar(
+                sql,
+                new List<SqlParameter>
+                {
+                    new SqlParameter("@doc", (object)documento ?? DBNull.Value),
+                    new SqlParameter("@id",  (object)excluirId ?? DBNull.Value)
+                });
+
+            return Convert.ToInt32(count) > 0;
+        }
+
+        public bool ExisteEmail(string email, int? excluirId = null)
+        {
+            const string sql = @"
+        SELECT COUNT(*)
+        FROM dbo.Usuario
+        WHERE Mail = @mail
+          AND @mail IS NOT NULL
+          AND (@id IS NULL OR IdUsuario <> @id);";
+
+            var count = SqlHelpers.GetInstance(Cnn).ExecuteScalar(
+                sql,
+                new List<SqlParameter>
+                {
+                    new SqlParameter("@mail", (object)email ?? DBNull.Value),
+                    new SqlParameter("@id",   (object)excluirId ?? DBNull.Value)
+                });
+
+            return Convert.ToInt32(count) > 0;
+        }
+
+        #endregion
 
         #region Relaciones Usuario-Familia
         public bool DeleteUsuarioFamilia(int idFamilia)
@@ -375,25 +391,50 @@ namespace DAL
             return true;
         }
         #endregion
+
+        #region Usuario-Patente (no huérfanas)
         public bool SetPatentesDeUsuario(int idUsuario, IList<int> patentesIds)
         {
+            patentesIds = patentesIds?.Distinct().ToList() ?? new List<int>();
+
             using (var cn = DAL.ConnectionFactory.Open())
             using (var tx = cn.BeginTransaction())
             {
                 try
                 {
-                    // limpia actuales
+                    // 1) Leer patentes actuales del usuario
+                    var actuales = new List<int>();
+                    using (var cmd = new SqlCommand("SELECT IdPatente FROM UsuarioPatente WHERE IdUsuario=@u", cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@u", idUsuario);
+                        using (var dr = cmd.ExecuteReader())
+                            while (dr.Read()) actuales.Add(dr.GetInt32(0));
+                    }
+
+                    // 2) Determinar removidas
+                    var removidas = actuales.Except(patentesIds).ToList();
+
+                    // 3) Validación anti-huérfanas
+                    foreach (var idPat in removidas)
+                    {
+                        int restantes = PatenteDao.GetInstance()
+                            .CountAsignacionesPatenteExcluyendoUsuario(idPat, idUsuario);
+
+                        if (restantes <= 0)
+                            throw new Exception($"No se puede quitar la patente (Id={idPat}) porque quedaría sin asignar.");
+                    }
+
+                    // 4) Limpiar y reinsertar
                     using (var del = new SqlCommand("DELETE FROM UsuarioPatente WHERE IdUsuario=@u", cn, tx))
                     {
                         del.Parameters.AddWithValue("@u", idUsuario);
                         del.ExecuteNonQuery();
                     }
 
-                    // inserta nuevas
-                    if (patentesIds != null)
+                    if (patentesIds.Any())
                     {
                         const string ins = "INSERT INTO UsuarioPatente (IdUsuario, IdPatente) VALUES (@u, @p)";
-                        foreach (var idP in patentesIds.Distinct())
+                        foreach (var idP in patentesIds)
                         {
                             using (var cmd = new SqlCommand(ins, cn, tx))
                             {
@@ -404,7 +445,7 @@ namespace DAL
                         }
                     }
 
-                    // Recalcular DVV (si lo estás usando)
+                    // 5) DVV
                     var dvv = DAL.DVVDao.GetInstance().CalculateDVV("UsuarioPatente");
                     DAL.DVVDao.GetInstance().AddUpdateDVV(new BE.DVV { tabla = "UsuarioPatente", dvv = dvv });
 
@@ -418,14 +459,16 @@ namespace DAL
                 }
             }
         }
+        #endregion
 
+        #region Helpers VARBINARY
         private static SqlParameter VarBinaryParam(string name, byte[] value, int size)
         {
             var p = new SqlParameter(name, System.Data.SqlDbType.VarBinary, size);
             p.Value = (object)value ?? DBNull.Value;
             return p;
         }
-        // si querés aceptar string base64 por las dudas:
+
         private static SqlParameter VarBinaryParamFromB64(string name, object value, int size)
         {
             byte[] bytes = null;
@@ -436,6 +479,12 @@ namespace DAL
             }
             return VarBinaryParam(name, bytes, size);
         }
+        #endregion
 
+        #region ICRUD (no usados directamente por UI)
+        public bool Add(Usuario alta) { throw new NotImplementedException(); }
+        public bool Update(Usuario update) { throw new NotImplementedException(); }
+        public bool Delete(Usuario baja) { throw new NotImplementedException(); }
+        #endregion
     }
 }

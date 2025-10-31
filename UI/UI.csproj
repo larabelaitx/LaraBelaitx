@@ -98,6 +98,7 @@
     <Compile Include="ChangePasswordDialog.Designer.cs">
       <DependentUpon>ChangePasswordDialog.cs</DependentUpon>
     </Compile>
+    <Compile Include="Common.cs" />
     <Compile Include="ConfigStringConn.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -139,12 +140,6 @@
     </Compile>
     <Compile Include="MainFamilia.Designer.cs">
       <DependentUpon>MainFamilia.cs</DependentUpon>
-    </Compile>
-    <Compile Include="MainPatente.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="MainPatente.Designer.cs">
-      <DependentUpon>MainPatente.cs</DependentUpon>
     </Compile>
     <Compile Include="MainURP.cs">
       <SubType>Form</SubType>
@@ -204,6 +199,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="MainCuentas.resx">
       <DependentUpon>MainCuentas.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="MainDV.resx">
+      <DependentUpon>MainDV.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="MainFamilia.resx">
       <DependentUpon>MainFamilia.cs</DependentUpon>

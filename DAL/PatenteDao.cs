@@ -18,7 +18,7 @@ namespace DAL
 
         public HashSet<Permiso> GetAll()
         {
-            const string sql = "SELECT IdPatente, Nombre FROM Patente";
+            const string sql = "SELECT IdPatente, Nombre FROM Patente ORDER BY Nombre"; // <-- NEW
             using (var cn = ConnectionFactory.Open())
             using (var cmd = new SqlCommand(sql, cn))
             using (var da = new SqlDataAdapter(cmd))
@@ -34,14 +34,13 @@ namespace DAL
             const string sql = "SELECT IdPatente, Nombre FROM Patente WHERE IdPatente = @id";
             using (var cn = ConnectionFactory.Open())
             using (var cmd = new SqlCommand(sql, cn))
+            using (var da = new SqlDataAdapter(cmd))
             {
                 cmd.Parameters.AddWithValue("@id", idPatente);
-                using (var da = new SqlDataAdapter(cmd))
-                {
-                    var dt = new DataTable();
-                    da.Fill(dt);
-                    return MPPatente.GetInstance().Map(dt);
-                }
+                var dt = new DataTable();
+                da.Fill(dt);
+                if (dt.Rows.Count == 0) return null;        // <-- NEW
+                return MPPatente.GetInstance().Map(dt);
             }
         }
 
@@ -87,21 +86,18 @@ namespace DAL
 
         public HashSet<Permiso> GetBySector(int sector)
         {
-            // Si tenés columna Sector en Patente, filtrá; si no, devolvé todo.
-            // const string sql = "SELECT IdPatente, Nombre, Sector FROM Patente WHERE Sector=@s";
-            const string sql = "SELECT IdPatente, Nombre FROM Patente";
+            // Si NO hay columna Sector, devolvé todo ordenado (o eliminá este método si no se usa).
+            const string sql = "SELECT IdPatente, Nombre FROM Patente ORDER BY Nombre";
             using (var cn = ConnectionFactory.Open())
             using (var cmd = new SqlCommand(sql, cn))
+            using (var da = new SqlDataAdapter(cmd))
             {
-                cmd.Parameters.AddWithValue("@s", sector);
-                using (var da = new SqlDataAdapter(cmd))
-                {
-                    var dt = new DataTable();
-                    da.Fill(dt);
-                    return MPPatente.GetInstance().MapPatentes(dt);
-                }
+                var dt = new DataTable();
+                da.Fill(dt);
+                return MPPatente.GetInstance().MapPatentes(dt);
             }
         }
+
 
         // ------------------ Relaciones / util ------------------
 
@@ -142,6 +138,51 @@ namespace DAL
             using (var cmd = new SqlCommand(sql, cn))
             {
                 cmd.Parameters.AddWithValue("@p", idPatente);
+                return Convert.ToInt32(cmd.ExecuteScalar());
+            }
+        }
+        public int CountAsignacionesPatente(int idPatente)
+        {
+            return GetCountUsuarioPatentes(idPatente) + GetCountFamiliasPatente(idPatente);
+        }
+
+        // NEW: Conteo excluyendo un usuario (para evaluar si al quitar una patente al usuario, sigue viva en otro lado)
+        public int CountAsignacionesPatenteExcluyendoUsuario(int idPatente, int idUsuario)
+        {
+            int enUsuariosExceptoEste = GetCountUsuarioPatentesExcepto(idPatente, idUsuario);
+            int enFamilias = GetCountFamiliasPatente(idPatente);
+            return enUsuariosExceptoEste + enFamilias;
+        }
+
+        // NEW: Conteo excluyendo una familia (para evaluar si al quitar de familia, sigue viva en otro lado)
+        public int CountAsignacionesPatenteExcluyendoFamilia(int idPatente, int idFamilia)
+        {
+            int enUsuarios = GetCountUsuarioPatentes(idPatente);
+            int enFamiliasExceptoEsta = GetCountFamiliasPatenteExcepto(idPatente, idFamilia);
+            return enUsuarios + enFamiliasExceptoEsta;
+        }
+
+        // NEW (helpers privados)
+        private int GetCountUsuarioPatentesExcepto(int idPatente, int idUsuario)
+        {
+            const string sql = "SELECT COUNT(*) FROM UsuarioPatente WHERE IdPatente=@p AND IdUsuario<>@u";
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
+            {
+                cmd.Parameters.AddWithValue("@p", idPatente);
+                cmd.Parameters.AddWithValue("@u", idUsuario);
+                return Convert.ToInt32(cmd.ExecuteScalar());
+            }
+        }
+
+        private int GetCountFamiliasPatenteExcepto(int idPatente, int idFamilia)
+        {
+            const string sql = "SELECT COUNT(*) FROM FamiliaPatente WHERE IdPatente=@p AND IdFamilia<>@f";
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sql, cn))
+            {
+                cmd.Parameters.AddWithValue("@p", idPatente);
+                cmd.Parameters.AddWithValue("@f", idFamilia);
                 return Convert.ToInt32(cmd.ExecuteScalar());
             }
         }

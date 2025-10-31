@@ -3,6 +3,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Collections.Generic;
 using BE;
+using System.Linq;
 
 namespace DAL
 {
@@ -163,12 +164,139 @@ namespace DAL
         {
             if (f == null) throw new ArgumentNullException(nameof(f));
 
-            const string sql = "DELETE FROM Familia WHERE IdFamilia = @id";
             using (var cn = ConnectionFactory.Open())
-            using (var cmd = new SqlCommand(sql, cn))
+            using (var tx = cn.BeginTransaction())
             {
-                cmd.Parameters.AddWithValue("@id", f.Id);
-                return cmd.ExecuteNonQuery();
+                try
+                {
+                    // 1) Patentes de la familia
+                    var patentes = new List<int>();
+                    using (var cmd = new SqlCommand(
+                        "SELECT IdPatente FROM FamiliaPatente WHERE IdFamilia = @f", cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@f", f.Id);
+                        using (var dr = cmd.ExecuteReader())
+                        {
+                            while (dr.Read()) patentes.Add(dr.GetInt32(0));
+                        }
+                    }
+
+                    // 2) Validación anti-huérfanas: cada patente debe seguir asignada
+                    foreach (var idPat in patentes)
+                    {
+                        int restantes = PatenteDao.GetInstance()
+                            .CountAsignacionesPatenteExcluyendoFamilia(idPat, f.Id);
+
+                        if (restantes <= 0)
+                            throw new Exception(
+                                $"No se puede eliminar la familia. La patente Id={idPat} quedaría sin asignar.");
+                    }
+
+                    // 3) Borrar relaciones (UsuarioFamilia y FamiliaPatente)
+                    using (var delUF = new SqlCommand(
+                        "DELETE FROM UsuarioFamilia WHERE IdFamilia = @f", cn, tx))
+                    {
+                        delUF.Parameters.AddWithValue("@f", f.Id);
+                        delUF.ExecuteNonQuery();
+                    }
+
+                    using (var delFP = new SqlCommand(
+                        "DELETE FROM FamiliaPatente WHERE IdFamilia = @f", cn, tx))
+                    {
+                        delFP.Parameters.AddWithValue("@f", f.Id);
+                        delFP.ExecuteNonQuery();
+                    }
+
+                    // 4) Borrar familia
+                    int affected;
+                    using (var delFam = new SqlCommand(
+                        "DELETE FROM Familia WHERE IdFamilia = @id", cn, tx))
+                    {
+                        delFam.Parameters.AddWithValue("@id", f.Id);
+                        affected = delFam.ExecuteNonQuery();
+                    }
+
+                    // 5) DVV de tablas afectadas
+                    var dvv = DAL.DVVDao.GetInstance();
+                    UpsertDVV_tx(cn, tx, "UsuarioFamilia", dvv.CalculateDVV("UsuarioFamilia"));
+                    UpsertDVV_tx(cn, tx, "FamiliaPatente", dvv.CalculateDVV("FamiliaPatente"));
+                    UpsertDVV_tx(cn, tx, "Familia", dvv.CalculateDVV("Familia"));
+
+                    tx.Commit();
+                    return affected; // 1 si borró la familia, 0 si no
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        public int DeleteSafe(Familia f)
+        {
+            if (f == null) throw new ArgumentNullException(nameof(f));
+
+            using (var cn = ConnectionFactory.Open())
+            using (var tx = cn.BeginTransaction())
+            {
+                try
+                {
+                    // 1) Patentes de la familia
+                    var patentes = new List<int>();
+                    using (var cmd = new SqlCommand("SELECT IdPatente FROM FamiliaPatente WHERE IdFamilia=@f", cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@f", f.Id);
+                        using (var dr = cmd.ExecuteReader())
+                            while (dr.Read()) patentes.Add(dr.GetInt32(0));
+                    }
+
+                    // 2) Validar que cada patente quede asignada en algún otro lado
+                    foreach (var idPat in patentes)
+                    {
+                        int restantes = PatenteDao.GetInstance()
+                            .CountAsignacionesPatenteExcluyendoFamilia(idPat, f.Id);
+
+                        if (restantes <= 0)
+                            throw new Exception($"No se puede borrar la familia '{f.Name}': la patente (Id={idPat}) quedaría sin asignar.");
+                    }
+
+                    // 3) Borrar relaciones Usuario-Familia y Familia-Patente
+                    using (var cmd = new SqlCommand("DELETE FROM UsuarioFamilia WHERE IdFamilia=@f", cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@f", f.Id);
+                        cmd.ExecuteNonQuery();
+                    }
+                    using (var cmd = new SqlCommand("DELETE FROM FamiliaPatente WHERE IdFamilia=@f", cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@f", f.Id);
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 4) Borrar la familia
+                    int rows;
+                    using (var cmd = new SqlCommand("DELETE FROM Familia WHERE IdFamilia=@f", cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@f", f.Id);
+                        rows = cmd.ExecuteNonQuery();
+                    }
+
+                    // 5) DVV
+                    var dvv1 = DVVDao.GetInstance().CalculateDVV("UsuarioFamilia");
+                    UpsertDVV_tx(cn, tx, "UsuarioFamilia", dvv1);
+                    var dvv2 = DVVDao.GetInstance().CalculateDVV("FamiliaPatente");
+                    UpsertDVV_tx(cn, tx, "FamiliaPatente", dvv2);
+                    var dvv3 = DVVDao.GetInstance().CalculateDVV("Familia");
+                    UpsertDVV_tx(cn, tx, "Familia", dvv3);
+
+                    tx.Commit();
+                    return rows;
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
             }
         }
 
@@ -222,6 +350,7 @@ namespace DAL
 
         public int SetPatentesDeFamilia(int idFamilia, IEnumerable<int> patentesIds)
         {
+            patentesIds = patentesIds?.Distinct() ?? Enumerable.Empty<int>();
             int affected = 0;
 
             using (var cn = ConnectionFactory.Open())
@@ -229,15 +358,36 @@ namespace DAL
             {
                 try
                 {
-                    // borrar actuales
+                    // 1) Leer actuales de la familia
+                    var actuales = new List<int>();
+                    using (var cmd = new SqlCommand("SELECT IdPatente FROM FamiliaPatente WHERE IdFamilia=@f", cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@f", idFamilia);
+                        using (var dr = cmd.ExecuteReader())
+                            while (dr.Read()) actuales.Add(dr.GetInt32(0));
+                    }
+
+                    // 2) Determinar removidas
+                    var removidas = actuales.Except(patentesIds).ToList();
+
+                    // 3) Validación anti-huérfanas (si saco X de la familia, ¿sigue existiendo en otro lado?)
+                    foreach (var idPat in removidas)
+                    {
+                        int restantes = PatenteDao.GetInstance()
+                            .CountAsignacionesPatenteExcluyendoFamilia(idPat, idFamilia);
+
+                        if (restantes <= 0)
+                            throw new Exception($"No se puede quitar la patente (Id={idPat}) de la familia porque quedaría sin asignar.");
+                    }
+
+                    // 4) Borrar e insertar
                     using (var del = new SqlCommand("DELETE FROM FamiliaPatente WHERE IdFamilia = @f", cn, tx))
                     {
                         del.Parameters.AddWithValue("@f", idFamilia);
                         affected += del.ExecuteNonQuery();
                     }
 
-                    // insertar nuevos
-                    if (patentesIds != null)
+                    if (patentesIds.Any())
                     {
                         const string ins = "INSERT INTO FamiliaPatente (IdFamilia, IdPatente) VALUES (@f, @p)";
                         foreach (var idPat in patentesIds)

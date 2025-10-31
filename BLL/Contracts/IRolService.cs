@@ -16,7 +16,10 @@ public interface IRolService
     List<BE.Familia> GetFamiliasUsuario(int idUsuario);
     bool SetFamiliasDeUsuario(int idUsuario, IEnumerable<int> familiasIds);
 
-    // ➕ NUEVO: patentes asignadas directamente a un usuario
+    // Patentes directas por usuario
     List<BE.Permiso> GetPatentesDeUsuario(int idUsuario);
     bool SetPatentesDeUsuario(int idUsuario, IEnumerable<int> idsPatentes);
+
+    // ➕ Faltaba (para el botón Eliminar del grid)
+    bool EliminarFamilia(int idFamilia);
 }

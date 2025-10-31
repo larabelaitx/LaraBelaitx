@@ -73,7 +73,6 @@
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(1091, 58);
             this.panel1.TabIndex = 10;
-            this.panel1.Paint += new System.Windows.Forms.PaintEventHandler(this.panel1_Paint);
             // 
             // label2
             // 
@@ -342,7 +341,7 @@
             this.btnAgregarr.TabIndex = 29;
             this.btnAgregarr.Text = "Agregar";
             this.btnAgregarr.UseVisualStyleBackColor = true;
-            this.btnAgregarr.Click += new System.EventHandler(this.btnAgregarr_Click);
+
             // 
             // MainUsuarios
             // 

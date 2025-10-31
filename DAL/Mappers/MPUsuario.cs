@@ -7,11 +7,9 @@ namespace DAL.Mappers
 {
     public class MPUsuario
     {
-        #region Singleton
         private static MPUsuario _instance;
         public static MPUsuario GetInstance() => _instance ?? (_instance = new MPUsuario());
         private MPUsuario() { }
-        #endregion
 
         public Usuario MapUser(DataTable dt)
         {
@@ -32,7 +30,7 @@ namespace DAL.Mappers
             var hashBytes = GetBytes(r, "PasswordHash");
             var saltBytes = GetBytes(r, "PasswordSalt");
 
-            var u = new Usuario
+            return new Usuario
             {
                 Id = Get<int>(r, "IdUsuario"),
                 UserName = Get<string>(r, "Usuario"),
@@ -46,7 +44,6 @@ namespace DAL.Mappers
 
                 Tries = Get<int>(r, "NroIntentos"),
 
-                // <- clave: asignar byte[] directamente, nada de Base64 aquí
                 PasswordHash = hashBytes,
                 PasswordSalt = saltBytes,
                 PasswordIterations = Get<int>(r, "PasswordIterations"),
@@ -57,33 +54,22 @@ namespace DAL.Mappers
 
                 DebeCambiarContraseña = Get<bool>(r, "DebeCambiarContrasena", false)
             };
-
-            return u;
         }
 
-        // ========= helpers =========
-
+        // ===== helpers =====
         private static bool HasCol(DataRow r, string col)
             => r?.Table?.Columns?.Contains(col) == true;
 
         private static T ConvertTo<T>(object v, T def = default)
         {
             if (v == null || v == DBNull.Value) return def;
-
             var t = typeof(T);
             var underlying = Nullable.GetUnderlyingType(t);
-            if (underlying != null)
-            {
-                return (T)System.Convert.ChangeType(v, underlying);
-            }
-            return (T)System.Convert.ChangeType(v, t);
+            return (T)System.Convert.ChangeType(v, underlying ?? t);
         }
 
         private static T Get<T>(DataRow r, string col, T def = default)
-        {
-            if (!HasCol(r, col)) return def;
-            return ConvertTo<T>(r[col], def);
-        }
+            => HasCol(r, col) ? ConvertTo<T>(r[col], def) : def;
 
         private static T GetFlex<T>(DataRow r, T def, params string[] cols)
         {
@@ -99,9 +85,6 @@ namespace DAL.Mappers
         }
 
         private static byte[] GetBytes(DataRow r, string col)
-        {
-            if (!HasCol(r, col)) return null;
-            return r[col] == DBNull.Value ? null : (byte[])r[col];
-        }
+            => HasCol(r, col) && r[col] != DBNull.Value ? (byte[])r[col] : null;
     }
 }

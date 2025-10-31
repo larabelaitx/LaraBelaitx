@@ -30,13 +30,14 @@
         {
             this.SuspendLayout();
             // 
-            // DialogoRolesUsuario
+            // DialogRolesUsuario
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(800, 450);
-            this.Name = "DialogoRolesUsuario";
+            this.ClientSize = new System.Drawing.Size(802, 443);
+            this.Name = "DialogRolesUsuario";
             this.Text = "DialogoRolesUsuario";
+            this.Load += new System.EventHandler(this.DialogRolesUsuario_Load);
             this.ResumeLayout(false);
 
         }

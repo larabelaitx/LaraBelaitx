@@ -20,6 +20,31 @@ namespace BLL.Services
             _usuarios = UsuarioDao.GetInstance();
         }
 
+        public interface IRolService
+        {
+            IEnumerable<BE.Permiso> ListarRoles();
+            BE.Familia GetFamilia(int id);
+            int CrearFamilia(BE.Familia f);
+            bool ActualizarFamilia(BE.Familia f);
+
+            // Patentes
+            List<BE.Patente> GetPatentes();
+            List<BE.Patente> GetPatentesDeFamilia(int idFamilia);
+            bool SetPatentesDeFamilia(int idFamilia, IEnumerable<int> idsPatentes);
+
+            // Familias por usuario
+            List<BE.Familia> GetFamiliasUsuario(int idUsuario);
+            bool SetFamiliasDeUsuario(int idUsuario, IEnumerable<int> familiasIds);
+
+            // Patentes directas por usuario
+            List<BE.Permiso> GetPatentesDeUsuario(int idUsuario);
+            bool SetPatentesDeUsuario(int idUsuario, IEnumerable<int> idsPatentes);
+
+            // ➕ Falta en el contrato (ya existe en RolService)
+            bool EliminarFamilia(int idFamilia);
+        }
+
+
         // ---------- Familias / Roles ----------
         public IEnumerable<Permiso> ListarRoles()
         {

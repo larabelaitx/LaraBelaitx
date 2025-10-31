@@ -168,13 +168,14 @@
             this.btnGuardar.TabIndex = 50;
             this.btnGuardar.Values.DropDownArrowColor = System.Drawing.Color.Empty;
             this.btnGuardar.Values.Text = "Guardar";
+
             // 
             // ConfigStringConn
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.White;
-            this.ClientSize = new System.Drawing.Size(600, 439);
+            this.ClientSize = new System.Drawing.Size(602, 432);
             this.Controls.Add(this.btnGuardar);
             this.Controls.Add(this.btnProbar);
             this.Controls.Add(this.chkWindows);

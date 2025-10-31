@@ -33,17 +33,17 @@
             this.btnVolver = new System.Windows.Forms.Button();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.btnAgregar = new Krypton.Toolkit.KryptonButton();
-            this.kryptonComboBox1 = new Krypton.Toolkit.KryptonComboBox();
-            this.txtFamilia = new Krypton.Toolkit.KryptonTextBox();
+            this.cboActivo = new Krypton.Toolkit.KryptonComboBox();
+            this.txtNombre = new Krypton.Toolkit.KryptonTextBox();
             this.btnLimpiar = new Krypton.Toolkit.KryptonButton();
             this.label3 = new System.Windows.Forms.Label();
             this.btnAplicar = new Krypton.Toolkit.KryptonButton();
             this.label1 = new System.Windows.Forms.Label();
-            this.kryptonDataGridView1 = new Krypton.Toolkit.KryptonDataGridView();
+            this.dgvFamilias = new Krypton.Toolkit.KryptonDataGridView();
             this.panel1.SuspendLayout();
             this.groupBox1.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.kryptonComboBox1)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.kryptonDataGridView1)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.cboActivo)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.dgvFamilias)).BeginInit();
             this.SuspendLayout();
             // 
             // panel1
@@ -81,8 +81,8 @@
             // 
             this.groupBox1.BackColor = System.Drawing.SystemColors.ActiveCaption;
             this.groupBox1.Controls.Add(this.btnAgregar);
-            this.groupBox1.Controls.Add(this.kryptonComboBox1);
-            this.groupBox1.Controls.Add(this.txtFamilia);
+            this.groupBox1.Controls.Add(this.cboActivo);
+            this.groupBox1.Controls.Add(this.txtNombre);
             this.groupBox1.Controls.Add(this.btnLimpiar);
             this.groupBox1.Controls.Add(this.label3);
             this.groupBox1.Controls.Add(this.btnAplicar);
@@ -104,22 +104,21 @@
             this.btnAgregar.Values.DropDownArrowColor = System.Drawing.Color.Empty;
             this.btnAgregar.Values.Text = "Agregar";
             // 
-            // kryptonComboBox1
+            // cboActivo
             // 
-            this.kryptonComboBox1.DropDownWidth = 243;
-            this.kryptonComboBox1.Location = new System.Drawing.Point(469, 43);
-            this.kryptonComboBox1.Name = "kryptonComboBox1";
-            this.kryptonComboBox1.Size = new System.Drawing.Size(243, 26);
-            this.kryptonComboBox1.StateCommon.ComboBox.Content.TextH = Krypton.Toolkit.PaletteRelativeAlign.Near;
-            this.kryptonComboBox1.TabIndex = 28;
-            this.kryptonComboBox1.Text = "kryptonComboBox1";
+            this.cboActivo.DropDownWidth = 243;
+            this.cboActivo.Location = new System.Drawing.Point(469, 43);
+            this.cboActivo.Name = "cboActivo";
+            this.cboActivo.Size = new System.Drawing.Size(243, 26);
+            this.cboActivo.StateCommon.ComboBox.Content.TextH = Krypton.Toolkit.PaletteRelativeAlign.Near;
+            this.cboActivo.TabIndex = 28;
             // 
-            // txtFamilia
+            // txtNombre
             // 
-            this.txtFamilia.Location = new System.Drawing.Point(104, 42);
-            this.txtFamilia.Name = "txtFamilia";
-            this.txtFamilia.Size = new System.Drawing.Size(243, 27);
-            this.txtFamilia.TabIndex = 27;
+            this.txtNombre.Location = new System.Drawing.Point(104, 42);
+            this.txtNombre.Name = "txtNombre";
+            this.txtNombre.Size = new System.Drawing.Size(243, 27);
+            this.txtNombre.TabIndex = 27;
             // 
             // btnLimpiar
             // 
@@ -159,23 +158,23 @@
             this.label1.TabIndex = 12;
             this.label1.Text = "Nombre:";
             // 
-            // kryptonDataGridView1
+            // dgvFamilias
             // 
-            this.kryptonDataGridView1.BorderStyle = System.Windows.Forms.BorderStyle.None;
-            this.kryptonDataGridView1.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            this.kryptonDataGridView1.Location = new System.Drawing.Point(0, 174);
-            this.kryptonDataGridView1.Name = "kryptonDataGridView1";
-            this.kryptonDataGridView1.RowHeadersWidth = 51;
-            this.kryptonDataGridView1.RowTemplate.Height = 24;
-            this.kryptonDataGridView1.Size = new System.Drawing.Size(1098, 286);
-            this.kryptonDataGridView1.TabIndex = 17;
+            this.dgvFamilias.BorderStyle = System.Windows.Forms.BorderStyle.None;
+            this.dgvFamilias.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dgvFamilias.Location = new System.Drawing.Point(0, 174);
+            this.dgvFamilias.Name = "dgvFamilias";
+            this.dgvFamilias.RowHeadersWidth = 51;
+            this.dgvFamilias.RowTemplate.Height = 24;
+            this.dgvFamilias.Size = new System.Drawing.Size(1098, 286);
+            this.dgvFamilias.TabIndex = 17;
             // 
             // MainFamilia
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1100, 458);
-            this.Controls.Add(this.kryptonDataGridView1);
+            this.ClientSize = new System.Drawing.Size(1104, 444);
+            this.Controls.Add(this.dgvFamilias);
             this.Controls.Add(this.groupBox1);
             this.Controls.Add(this.panel1);
             this.Name = "MainFamilia";
@@ -185,8 +184,8 @@
             this.panel1.PerformLayout();
             this.groupBox1.ResumeLayout(false);
             this.groupBox1.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.kryptonComboBox1)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.kryptonDataGridView1)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.cboActivo)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.dgvFamilias)).EndInit();
             this.ResumeLayout(false);
 
         }
@@ -201,9 +200,9 @@
         private System.Windows.Forms.Label label3;
         private Krypton.Toolkit.KryptonButton btnAplicar;
         private System.Windows.Forms.Label label1;
-        private Krypton.Toolkit.KryptonComboBox kryptonComboBox1;
-        private Krypton.Toolkit.KryptonTextBox txtFamilia;
-        private Krypton.Toolkit.KryptonDataGridView kryptonDataGridView1;
+        private Krypton.Toolkit.KryptonComboBox cboActivo;
+        private Krypton.Toolkit.KryptonTextBox txtNombre;
+        private Krypton.Toolkit.KryptonDataGridView dgvFamilias;
         private Krypton.Toolkit.KryptonButton btnAgregar;
     }
 }

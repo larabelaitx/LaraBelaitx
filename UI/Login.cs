@@ -173,7 +173,7 @@ namespace UI
                 menu.FormClosed += (s2, e2) =>
                 {
                     txtContraseña.Clear();
-                    this.Show();
+          
                     this.WindowState = FormWindowState.Normal;
                     this.Activate();
                 };

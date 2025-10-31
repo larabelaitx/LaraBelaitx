@@ -54,10 +54,35 @@ namespace UI
             lstHeredadas.DataSource = _heredadas;
             lstHeredadas.DisplayMember = nameof(Permiso.Name);
             lstHeredadas.ValueMember = nameof(Permiso.Id);
-            lstHeredadas.Enabled = false; 
+            lstHeredadas.Enabled = false;
+
+            lstHeredadas.DoubleClick += (s, ev) =>
+            {
+                var sel = lstHeredadas.SelectedItems.Cast<Permiso>().ToList();
+                if (!sel.Any()) return;
+
+                foreach (var p in sel)
+                {
+                    if (!_asignadas.Any(x => x.Id == p.Id))
+                        _asignadas.Add(p);
+
+                    var matchDisp = _disponibles.FirstOrDefault(x => x.Id == p.Id);
+                    if (matchDisp != null) _disponibles.Remove(matchDisp);
+
+                    var matchHeredada = _heredadas.FirstOrDefault(x => x.Id == p.Id);
+                    if (matchHeredada != null) _heredadas.Remove(matchHeredada);
+                }
+
+                KryptonMessageBox.Show(
+                    "Patente heredada promovida a directa para este usuario.",
+                    "Patentes", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Information);
+            };
+
 
             AlternarEdicion(false);
         }
+
+
 
         private void AlternarEdicion(bool habilitar)
         {

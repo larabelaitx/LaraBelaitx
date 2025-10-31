@@ -15,7 +15,11 @@ namespace UI
             InitializeComponent();
         }
 
-        private void MainURP_Load(object sender, EventArgs e) { }
+        // <-- Agregado para resolver CS1061
+        private void MainURP_Load(object sender, EventArgs e)
+        {
+            // Nada por ahora
+        }
 
         private void btnUsuarios_Click(object sender, EventArgs e)
         {
@@ -25,13 +29,13 @@ namespace UI
 
         private void btnRoles_Click(object sender, EventArgs e)
         {
-            using (var frm = new MainFamilia()) // usa el nombre real
+            using (var frm = new MainFamilia(_rolSvc))
                 frm.ShowDialog(this);
         }
 
         private void btnPermisos_Click(object sender, EventArgs e)
         {
-            using (var frm = new MainPatente()) // o AltaPatente
+            using (var frm = new AltaPatente(_usrSvc, _rolSvc))
                 frm.ShowDialog(this);
         }
     }

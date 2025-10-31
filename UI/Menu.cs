@@ -11,7 +11,6 @@ namespace UI
 {
     public partial class Menu : KryptonForm
     {
-
         private readonly Usuario _usuario;
         private readonly UsuarioService _usrSvc = new UsuarioService();
         private readonly RolService _rolSvc = new RolService();
@@ -42,7 +41,6 @@ namespace UI
             if (c != null) c.Click += handler;
         }
 
-
         private void Menu_Load(object sender, EventArgs e)
         {
             try
@@ -58,20 +56,19 @@ namespace UI
                     KryptonMessageBoxIcon.Error);
             }
         }
+
         private void btnClientes_Click(object sender, EventArgs e)
         {
             using (var frm = new MainClientes())
-            {
                 frm.ShowDialog(this);
-            }
         }
+
         private void btnCuentas_Click(object sender, EventArgs e)
         {
             using (var frm = new MainCuentas())
-            {
                 frm.ShowDialog(this);
-            }
         }
+
         private void btnTarjetas_Click(object sender, EventArgs e)
         {
             KryptonMessageBox.Show("El módulo de Tarjetas está en construcción.", "Tarjetas");
@@ -81,10 +78,13 @@ namespace UI
         {
             try
             {
-                using (var frm = new Bitacora(ReadConnectionString()))
-                {
+                string cnn = AppConn.Get(); // 🔹 ahora lee de tu archivo cifrado db.conn.sec
+
+                if (string.IsNullOrWhiteSpace(cnn))
+                    throw new Exception("No se encontró cadena de conexión configurada.");
+
+                using (var frm = new Bitacora(cnn))
                     frm.ShowDialog(this);
-                }
             }
             catch (Exception ex)
             {
@@ -95,12 +95,11 @@ namespace UI
                     KryptonMessageBoxIcon.Error);
             }
         }
+
         private void btnBackupRestore_Click(object sender, EventArgs e)
         {
-            using (var frm = new BackupRestore(_usuario, "es")) 
-            {
+            using (var frm = new BackupRestore(_usuario, "es"))
                 frm.ShowDialog(this);
-            }
         }
 
         private void btnMiPerfil_Click(object sender, EventArgs e)
@@ -119,9 +118,7 @@ namespace UI
                 }
 
                 using (var frm = new AltaUsuario(ModoForm.Editar, u.Id, _usrSvc, _rolSvc))
-                {
                     frm.ShowDialog(this);
-                }
             }
             catch (Exception ex)
             {
@@ -133,16 +130,13 @@ namespace UI
             }
         }
 
-        // Cerrar Sesión
         private void btnCerrarSesion_Click(object sender, EventArgs e)
         {
-            try { BLL.Bitacora.Info(_usuario.Id, "Cierre de sesión"); } catch { /* no bloqueo logout */ }
+            try { BLL.Bitacora.Info(_usuario.Id, "Cierre de sesión"); } catch { }
 
             this.Hide();
             using (var login = new Login())
-            {
                 login.ShowDialog();
-            }
             this.Close();
         }
 
@@ -187,37 +181,17 @@ namespace UI
 
             if (rtb != null) rtb.Text = sb.ToString();
         }
-        private static string ReadConnectionString()
-        {
-            try
-            {
-                var path = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ConfigFile.txt");
-                if (!System.IO.File.Exists(path))
-                    throw new Exception("No se encontró ConfigFile.txt");
-
-                var b64 = System.IO.File.ReadAllText(path).Trim();
-                return Encoding.UTF8.GetString(Convert.FromBase64String(b64));
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("No se pudo leer la cadena de conexión. " + ex.Message);
-            }
-        }
 
         private void btnDigitosVerificadores_Click(object sender, EventArgs e)
         {
-            using (var frm = new MainDV()) 
-            {
+            using (var frm = new MainDV())
                 frm.ShowDialog(this);
-            }
         }
 
         private void btnUsuariosRolesPermisos_Click(object sender, EventArgs e)
         {
             using (var frm = new MainURP())
-            {
                 frm.ShowDialog(this);
-            }
         }
     }
 }

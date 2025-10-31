@@ -23,46 +23,43 @@ namespace DAL.Mappers
 
         public BE.Permiso Map(DataTable dt)
         {
+            if (dt == null || dt.Rows.Count == 0) return null; // <- NEW
+
             try
             {
-                BE.Patente patente = new BE.Patente()
+                return new BE.Patente
                 {
                     Id = dt.Rows[0].Field<int>("IdPatente"),
                     Name = dt.Rows[0].Field<string>("Nombre"),
                 };
-
-                return patente;
-
             }
-            catch (Exception e)
+            catch
             {
-
-                throw e;
+                throw; // <- en lugar de "throw e;" para no perder el stack original
             }
         }
         public HashSet<BE.Permiso> MapPatentes(DataTable dt)
         {
-            HashSet<BE.Permiso> patentes = new HashSet<BE.Permiso>();
+            var patentes = new HashSet<BE.Permiso>();
+            if (dt == null || dt.Rows.Count == 0) return patentes; // <- NEW
+
             try
             {
                 foreach (DataRow dr in dt.Rows)
                 {
-
-                    patentes.Add(new BE.Patente()
+                    patentes.Add(new BE.Patente
                     {
                         Id = dr.Field<int>("IdPatente"),
                         Name = dr.Field<string>("Nombre"),
                     });
                 }
-
                 return patentes;
-
             }
-            catch (Exception e)
+            catch
             {
-
-                throw e;
+                throw; // <- idem
             }
         }
+
     }
 }

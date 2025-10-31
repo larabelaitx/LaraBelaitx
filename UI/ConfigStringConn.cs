@@ -18,14 +18,14 @@ namespace UI
             InitializeComponent();
 
             this.Load += ConfigStringConn_Load;
-            this.chkWindows.CheckedChanged += chkWindows_CheckedChanged;
-            this.btnProbar.Click += btnProbar_Click;
-            this.btnGuardar.Click += btnGuardar_Click;
+            chkWindows.CheckedChanged += chkWindows_CheckedChanged;
+            btnProbar.Click += btnProbar_Click;
+            btnGuardar.Click += btnGuardar_Click;
         }
 
         private void ConfigStringConn_Load(object sender, EventArgs e)
         {
-            // Defaults útiles
+            // Defaults
             if (string.IsNullOrWhiteSpace(txtServidor.Text)) txtServidor.Text = "LARAB";
             if (string.IsNullOrWhiteSpace(txtBase.Text)) txtBase.Text = "ITX";
 
@@ -62,13 +62,27 @@ namespace UI
 
             try
             {
-                // Guardamos con el proveedor central
-                AppConn.Save(cnn);
-                KryptonMessageBox.Show("Conexión guardada correctamente.", "Config DB",
-                   KryptonMessageBoxButtons.OK,
-                    KryptonMessageBoxIcon.Error);
+                // ⚠️ Si no conecta, pedimos confirmación antes de guardar
+                if (!TestConnection(cnn))
+                {
+                    var r = KryptonMessageBox.Show(
+                        "La conexión no pudo establecerse.\n¿Guardar de todos modos?",
+                        "Config DB",
+                        KryptonMessageBoxButtons.YesNo,
+                        KryptonMessageBoxIcon.Warning);
+                    if (r != DialogResult.Yes) return;
+                }
 
-                this.DialogResult = DialogResult.OK; // <- clave para Program.cs
+                // Guarda cifrada en Resources\db.conn.sec
+                AppConn.Save(cnn);
+
+                KryptonMessageBox.Show(
+                    "Conexión guardada correctamente.",
+                    "Config DB",
+                    KryptonMessageBoxButtons.OK,
+                    KryptonMessageBoxIcon.Information);
+
+                this.DialogResult = DialogResult.OK;
                 this.Close();
             }
             catch (Exception ex)
@@ -77,10 +91,11 @@ namespace UI
                     "Error al guardar la conexión.\n" + ex.Message,
                     "Config DB",
                     KryptonMessageBoxButtons.OK,
-                    KryptonMessageBoxIcon.Error
-);
+                    KryptonMessageBoxIcon.Error);
             }
         }
+
+        // ----------------- Helpers -----------------
 
         private string BuildConnectionString()
         {
@@ -98,15 +113,31 @@ namespace UI
         private bool ValidateFields()
         {
             if (string.IsNullOrWhiteSpace(txtServidor.Text))
-            { KryptonMessageBox.Show("Debés completar el Server.", "Config DB"); txtServidor.Focus(); return false; }
+            {
+                KryptonMessageBox.Show("Debés completar el Server.", "Config DB");
+                txtServidor.Focus();
+                return false;
+            }
             if (string.IsNullOrWhiteSpace(txtBase.Text))
-            { KryptonMessageBox.Show("Debés completar la Base de Datos.", "Config DB"); txtBase.Focus(); return false; }
+            {
+                KryptonMessageBox.Show("Debés completar la Base de Datos.", "Config DB");
+                txtBase.Focus();
+                return false;
+            }
             if (!chkWindows.Checked)
             {
                 if (string.IsNullOrWhiteSpace(txtUsuarioDb.Text))
-                { KryptonMessageBox.Show("Debés completar el Usuario DB.", "Config DB"); txtUsuarioDb.Focus(); return false; }
+                {
+                    KryptonMessageBox.Show("Debés completar el Usuario DB.", "Config DB");
+                    txtUsuarioDb.Focus();
+                    return false;
+                }
                 if (string.IsNullOrEmpty(txtPassDb.Text))
-                { KryptonMessageBox.Show("Debés completar la Contraseña.", "Config DB"); txtPassDb.Focus(); return false; }
+                {
+                    KryptonMessageBox.Show("Debés completar la Contraseña.", "Config DB");
+                    txtPassDb.Focus();
+                    return false;
+                }
             }
             return true;
         }
@@ -122,11 +153,14 @@ namespace UI
         {
             try
             {
-                // Si hay un archivo guardado lo abrimos con AppConn
-                var plain = AppConn.Get(); // si no existe, lanzará excepción y la ignoramos
+                // lee del archivo cifrado si existe
+                var plain = AppConn.Get();
                 ApplyConnectionStringToUI(plain);
             }
-            catch { /* ignorar */ }
+            catch
+            {
+                // no hay conexión guardada: ignorar
+            }
         }
 
         private void ApplyConnectionStringToUI(string cnn)
