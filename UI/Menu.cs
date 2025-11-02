@@ -1,197 +1,191 @@
 ﻿using System;
 using System.Linq;
-using System.Text;
 using System.Windows.Forms;
 using Krypton.Toolkit;
+
 using BE;
-using BLL.Services;
-using Services;
+using BLL.Contracts;
+using BLL.Services;   // UsuarioService, RolService
 
 namespace UI
 {
     public partial class Menu : KryptonForm
     {
-        private readonly Usuario _usuario;
-        private readonly UsuarioService _usrSvc = new UsuarioService();
-        private readonly RolService _rolSvc = new RolService();
-        private readonly ClienteService _cliSvc = new ClienteService();
-        private readonly CuentaService _ctaSvc = new CuentaService();
-        private readonly DVService _dvSvc = new DVService();
+        // Servicios compartidos por el menú y los formularios que abre
+        private readonly IUsuarioService _usrSvc;
+        private readonly IRolService _rolSvc;
 
-        public Menu(Usuario usuario)
+        // Usuario autenticado (opcional)
+        private readonly Usuario _usuarioActual;
+
+        // ---- Constructores ----
+        public Menu() : this(new UsuarioService(), new RolService(), null) { }
+        public Menu(Usuario usuarioActual) : this(new UsuarioService(), new RolService(), usuarioActual) { }
+        public Menu(IUsuarioService usrSvc, IRolService rolSvc, Usuario usuarioActual = null)
         {
             InitializeComponent();
-            _usuario = usuario ?? new Usuario { UserName = "Desconocido" };
 
-            SafeHook(btnClientes, btnClientes_Click);
-            SafeHook(btnCuentas, btnCuentas_Click);
-            SafeHook(btnTarjetas, btnTarjetas_Click);
-            SafeHook(btnUsuariosRolesPermisos, btnUsuariosRolesPermisos_Click);
-            SafeHook(btnBitacora, btnBitacora_Click);
-            SafeHook(btnBackupRestore, btnBackupRestore_Click);
-            SafeHook(btnDigitosVerificadores, btnDigitosVerificadores_Click);
-            SafeHook(btnCerrarSesion, btnCerrarSesion_Click);
-            SafeHook(btnMiPerfil, btnMiPerfil_Click);
+            _usrSvc = usrSvc ?? throw new ArgumentNullException(nameof(usrSvc));
+            _rolSvc = rolSvc ?? throw new ArgumentNullException(nameof(rolSvc));
+            _usuarioActual = usuarioActual;
 
-            this.Load += Menu_Load;
+            // Etiqueta de bienvenida si existe
+            var lbl = this.Controls.Find("lblUsuario", true).FirstOrDefault() as Label;
+            if (lbl != null && _usuarioActual != null)
+                lbl.Text = _usuarioActual?.NombreCompleto ?? _usuarioActual?.UserName ?? lbl.Text;
+
+            // Wire-up de botones
+            TryWire("btnUsuariosRolesPermisos", btnUsuariosRolesPermisos_Click); // URP hub
+            TryWire("btnFamilias", btnFamilias_Click);             // Roles/Familias
+            TryWire("btnPermisos", btnPermisos_Click);             // Patentes directas
+            TryWire("btnBackupRestore", btnBackupRestore_Click);
+            TryWire("btnClientes", btnClientes_Click);
+            TryWire("btnCuentas", btnCuentas_Click);
+            TryWire("btnTarjetas", btnTarjetas_Click);
+            TryWire("btnBitacora", btnBitacora_Click);
+            TryWire("btnDigitosVerificadores", btnDigitosVerificadores_Click);
+            TryWire("btnCerrarSesion", btnCerrarSesion_Click);
+            TryWire("btnSalir", (s, e) => Close());
         }
 
-        private void SafeHook(Control c, EventHandler handler)
+        // Helper para asociar eventos sin romper si el control no está
+        private void TryWire(string buttonName, EventHandler handler)
         {
-            if (c != null) c.Click += handler;
+            var btn = this.Controls.Find(buttonName, true).FirstOrDefault() as Control;
+            if (btn != null) btn.Click += handler;
         }
 
-        private void Menu_Load(object sender, EventArgs e)
+        // Helper para abrir modal con manejo de errores
+        private void OpenModal(Form frm)
         {
             try
             {
-                RenderAlertas();
+                using (frm) frm.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                KryptonMessageBox.Show(this, ex.Message, "Error", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
+            }
+        }
+
+        // === Handlers ===
+
+        // Hub URP (desde acá podés entrar a Usuarios, Familias, Patentes)
+        private void btnUsuariosRolesPermisos_Click(object sender, EventArgs e)
+        {
+            OpenModal(new MainURP(_usrSvc, _rolSvc));
+        }
+
+        // Mantenimiento de Familias/Roles compuestos
+        private void btnFamilias_Click(object sender, EventArgs e)
+        {
+            OpenModal(new MainFamilia(_rolSvc));
+        }
+
+        // Asignar patentes directas a un usuario
+        private void btnPermisos_Click(object sender, EventArgs e)
+        {
+            OpenModal(new AltaPatente(_usrSvc, _rolSvc));
+        }
+
+        // Backup / Restore
+        private void btnBackupRestore_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                var user = _usuarioActual;
+                string lang =
+                    (user?.IdiomaId == 2) ? "en-US" :
+                    (user?.IdiomaId == 3) ? "pt-BR" :
+                    "es-AR";
+
+                OpenModal(new BackupRestore(user, lang));
             }
             catch (Exception ex)
             {
                 KryptonMessageBox.Show(
-                    "Ocurrió un error al cargar el menú:\n" + ex.Message,
-                    "Menú",
+                    $"Error al abrir el módulo de Backup/Restore:\n{ex.Message}",
+                    "Error",
                     KryptonMessageBoxButtons.OK,
                     KryptonMessageBoxIcon.Error);
             }
         }
 
+        // Clientes (archivo: MainClientes.cs)
         private void btnClientes_Click(object sender, EventArgs e)
         {
-            using (var frm = new MainClientes())
-                frm.ShowDialog(this);
+            // Si tu clase se llama distinto, cambiá aquí.
+            OpenModal(new MainClientes());
         }
 
+        // Cuentas (archivo: MainCuentas.cs)
         private void btnCuentas_Click(object sender, EventArgs e)
         {
-            using (var frm = new MainCuentas())
-                frm.ShowDialog(this);
+            OpenModal(new MainCuentas());
         }
 
+        // Tarjetas (si tu form existe como MainTarjetas; si no, mostramos aviso)
         private void btnTarjetas_Click(object sender, EventArgs e)
         {
-            KryptonMessageBox.Show("El módulo de Tarjetas está en construcción.", "Tarjetas");
+            try
+            {
+                var frmType = Type.GetType("UI.MainTarjetas");
+                if (frmType == null)
+                {
+                    KryptonMessageBox.Show(this,
+                        "La pantalla de Tarjetas aún no está implementada (UI.MainTarjetas).",
+                        "Información", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Information);
+                    return;
+                }
+                var frm = (Form)Activator.CreateInstance(frmType);
+                OpenModal(frm);
+            }
+            catch (Exception ex)
+            {
+                KryptonMessageBox.Show(this, ex.Message, "Error", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
+            }
         }
 
+        // Bitácora (archivo: Bitacora.cs, clase Bitacora)
         private void btnBitacora_Click(object sender, EventArgs e)
         {
             try
             {
-                string cnn = AppConn.Get(); // 🔹 ahora lee de tu archivo cifrado db.conn.sec
-
-                if (string.IsNullOrWhiteSpace(cnn))
-                    throw new Exception("No se encontró cadena de conexión configurada.");
+                // Tomo el connection string actual desde la misma factory que usa tu DAL
+                string cnn;
+                using (var cn = DAL.ConnectionFactory.Open())
+                {
+                    cnn = cn.ConnectionString;
+                }
 
                 using (var frm = new Bitacora(cnn))
+                {
                     frm.ShowDialog(this);
+                }
             }
             catch (Exception ex)
             {
-                KryptonMessageBox.Show(
-                    "No se pudo abrir Bitácora:\n" + ex.Message,
-                    "Bitácora",
-                    KryptonMessageBoxButtons.OK,
-                    KryptonMessageBoxIcon.Error);
+                KryptonMessageBox.Show(this,
+                    "No se pudo abrir Bitácora.\n\n" + ex.Message,
+                    "Error", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
             }
         }
 
-        private void btnBackupRestore_Click(object sender, EventArgs e)
-        {
-            using (var frm = new BackupRestore(_usuario, "es"))
-                frm.ShowDialog(this);
-        }
 
-        private void btnMiPerfil_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                var u = _usrSvc.GetById(_usuario.Id);
-                if (u == null)
-                {
-                    KryptonMessageBox.Show(
-                        "No se pudo cargar el usuario actual.",
-                        "Mi Perfil",
-                        KryptonMessageBoxButtons.OK,
-                        KryptonMessageBoxIcon.Warning);
-                    return;
-                }
-
-                using (var frm = new AltaUsuario(ModoForm.Editar, u.Id, _usrSvc, _rolSvc))
-                    frm.ShowDialog(this);
-            }
-            catch (Exception ex)
-            {
-                KryptonMessageBox.Show(
-                    "Error al abrir Mi Perfil:\n" + ex.Message,
-                    "Mi Perfil",
-                    KryptonMessageBoxButtons.OK,
-                    KryptonMessageBoxIcon.Error);
-            }
-        }
-
-        private void btnCerrarSesion_Click(object sender, EventArgs e)
-        {
-            try { BLL.Bitacora.Info(_usuario.Id, "Cierre de sesión"); } catch { }
-
-            this.Hide();
-            using (var login = new Login())
-                login.ShowDialog();
-            this.Close();
-        }
-
-        private void RenderAlertas()
-        {
-            var rtb = this.Controls.Find("rtbAlertas", true).FirstOrDefault() as KryptonRichTextBox;
-            var lbl = this.Controls.Find("lblAlertas", true).FirstOrDefault() as KryptonLabel;
-            if (lbl != null) lbl.Values.Text = "Alertas";
-
-            var sb = new StringBuilder();
-
-            try
-            {
-                var bloqueados = _usrSvc.GetAll()
-                                        .Where(u => string.Equals(u.EstadoDisplay, "Bloqueado", StringComparison.OrdinalIgnoreCase))
-                                        .ToList();
-                if (bloqueados.Any())
-                {
-                    sb.AppendLine("• Usuarios bloqueados:");
-                    foreach (var b in bloqueados)
-                        sb.AppendLine($"   - {b.UserName} ({b.Email})");
-                    sb.AppendLine();
-                }
-            }
-            catch { }
-
-            try
-            {
-                string[] tablas = { "Usuario", "Cliente", "Cuenta", "Familia", "Patente", "Bitacora" };
-                var inconsistentes = tablas.Where(t => !_dvSvc.VerificarTabla(t, out _, out _)).ToList();
-                if (inconsistentes.Any())
-                {
-                    sb.AppendLine("• Inconsistencias DVV:");
-                    foreach (var t in inconsistentes) sb.AppendLine($"   - {t}");
-                    sb.AppendLine();
-                }
-            }
-            catch { }
-
-            if (sb.Length == 0)
-                sb.AppendLine("Sin alertas por el momento.");
-
-            if (rtb != null) rtb.Text = sb.ToString();
-        }
-
+        // Dígitos Verificadores (archivo: MainDV.cs)
         private void btnDigitosVerificadores_Click(object sender, EventArgs e)
         {
-            using (var frm = new MainDV())
-                frm.ShowDialog(this);
+            OpenModal(new MainDV());
         }
 
-        private void btnUsuariosRolesPermisos_Click(object sender, EventArgs e)
+        // Cerrar sesión (volver al Login si tu app lo maneja así)
+        private void btnCerrarSesion_Click(object sender, EventArgs e)
         {
-            using (var frm = new MainURP())
-                frm.ShowDialog(this);
+            if (KryptonMessageBox.Show(this, "¿Cerrar sesión?", "Confirmar",
+                KryptonMessageBoxButtons.YesNo, KryptonMessageBoxIcon.Question) == DialogResult.Yes)
+            {
+                Close(); // el Login que te abrió el menú se vuelve a activar (según tu implementación actual)
+            }
         }
     }
 }

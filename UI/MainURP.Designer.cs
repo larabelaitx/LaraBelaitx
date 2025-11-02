@@ -21,6 +21,7 @@
             this.panel1 = new System.Windows.Forms.Panel();
             this.labelTitulo = new System.Windows.Forms.Label();
             this.btnPerfil = new System.Windows.Forms.Button();
+            this.btnVolver = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.kryptonGroupBox2)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.kryptonGroupBox2.Panel)).BeginInit();
             this.kryptonGroupBox2.Panel.SuspendLayout();
@@ -30,6 +31,7 @@
             // 
             // kryptonGroupBox2
             // 
+            this.kryptonGroupBox2.CaptionStyle = Krypton.Toolkit.LabelStyle.AlternateControl;
             this.kryptonGroupBox2.Dock = System.Windows.Forms.DockStyle.Left;
             this.kryptonGroupBox2.Location = new System.Drawing.Point(0, 56);
             // 
@@ -38,7 +40,7 @@
             this.kryptonGroupBox2.Panel.Controls.Add(this.btnPermisos);
             this.kryptonGroupBox2.Panel.Controls.Add(this.btnRoles);
             this.kryptonGroupBox2.Panel.Controls.Add(this.btnUsuarios);
-            this.kryptonGroupBox2.Size = new System.Drawing.Size(285, 499);
+            this.kryptonGroupBox2.Size = new System.Drawing.Size(285, 485);
             this.kryptonGroupBox2.TabIndex = 0;
             // 
             // btnPermisos
@@ -80,12 +82,13 @@
             // panel1
             // 
             this.panel1.BackColor = System.Drawing.Color.CornflowerBlue;
+            this.panel1.Controls.Add(this.btnVolver);
             this.panel1.Controls.Add(this.labelTitulo);
             this.panel1.Controls.Add(this.btnPerfil);
             this.panel1.Dock = System.Windows.Forms.DockStyle.Top;
             this.panel1.Location = new System.Drawing.Point(0, 0);
             this.panel1.Name = "panel1";
-            this.panel1.Size = new System.Drawing.Size(1106, 56);
+            this.panel1.Size = new System.Drawing.Size(1110, 56);
             this.panel1.TabIndex = 1;
             // 
             // labelTitulo
@@ -103,23 +106,32 @@
             this.btnPerfil.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.btnPerfil.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnPerfil.Font = new System.Drawing.Font("Segoe UI Semibold", 9F);
-            this.btnPerfil.Location = new System.Drawing.Point(1796, 12);
+            this.btnPerfil.Location = new System.Drawing.Point(1800, 12);
             this.btnPerfil.Name = "btnPerfil";
             this.btnPerfil.Size = new System.Drawing.Size(190, 32);
             this.btnPerfil.TabIndex = 1;
             this.btnPerfil.Text = "Mi Perfil";
             this.btnPerfil.UseVisualStyleBackColor = true;
             // 
+            // btnVolver
+            // 
+            this.btnVolver.Font = new System.Drawing.Font("Segoe UI", 10.2F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnVolver.Location = new System.Drawing.Point(957, 12);
+            this.btnVolver.Name = "btnVolver";
+            this.btnVolver.Size = new System.Drawing.Size(148, 38);
+            this.btnVolver.TabIndex = 20;
+            this.btnVolver.Text = "Volver";
+            this.btnVolver.UseVisualStyleBackColor = true;
+            // 
             // MainURP
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1106, 555);
+            this.ClientSize = new System.Drawing.Size(1110, 541);
             this.Controls.Add(this.kryptonGroupBox2);
             this.Controls.Add(this.panel1);
             this.Name = "MainURP";
             this.Text = "Usuarios, Roles y Permisos";
-            this.Load += new System.EventHandler(this.MainURP_Load);
             ((System.ComponentModel.ISupportInitialize)(this.kryptonGroupBox2.Panel)).EndInit();
             this.kryptonGroupBox2.Panel.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.kryptonGroupBox2)).EndInit();
@@ -139,5 +151,6 @@
         private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.Label labelTitulo;
         private System.Windows.Forms.Button btnPerfil;
+        private System.Windows.Forms.Button btnVolver;
     }
 }

@@ -4,12 +4,12 @@ using System.Data.SqlClient;
 using System.Collections.Generic;
 using BE;
 using System.Linq;
+using DAL.Mappers;
 
 namespace DAL
 {
     public sealed class FamiliaDao
     {
-        // ------------------ Singleton ------------------
         private static FamiliaDao _inst;
         public static FamiliaDao GetInstance() => _inst ?? (_inst = new FamiliaDao());
         private FamiliaDao() { }
@@ -78,9 +78,9 @@ namespace DAL
             if (f == null) throw new ArgumentNullException(nameof(f));
 
             const string ins = @"
-                INSERT INTO Familia (Nombre, Descripcion, Activa, DVH)
-                VALUES (@n, @d, @a, @dvh);
-                SELECT CAST(SCOPE_IDENTITY() AS INT);";
+        INSERT INTO Familia (Nombre, Descripcion, Activa, DVH)
+        VALUES (@n, @d, @a, @dvh);
+        SELECT CAST(SCOPE_IDENTITY() AS INT);";
 
             using (var cn = ConnectionFactory.Open())
             using (var tx = cn.BeginTransaction())
@@ -94,6 +94,7 @@ namespace DAL
                     int nuevoId;
                     using (var cmd = new SqlCommand(ins, cn, tx))
                     {
+                        cmd.CommandTimeout = 120; // ⏱️ subir timeout
                         cmd.Parameters.AddWithValue("@n", (object)f.Name ?? DBNull.Value);
                         cmd.Parameters.AddWithValue("@d", (object)f.Descripcion ?? DBNull.Value);
                         cmd.Parameters.AddWithValue("@a", activa);
@@ -101,8 +102,9 @@ namespace DAL
                         nuevoId = Convert.ToInt32(cmd.ExecuteScalar());
                     }
 
-                    var dvv = DAL.DVVDao.GetInstance().CalculateDVV("Familia");
-                    UpsertDVV_tx(cn, tx, "Familia", dvv);
+                    // 🔐 Calcular DVV con NOLOCK para no quedar esperando si otra sesión lee DVH
+                    var dvv = DAL.DVVDao.GetInstance().CalculateDVV("Familia", useNoLock: true);
+                    UpsertDVV_tx(cn, tx, "Familia", dvv, timeout: 120);
 
                     tx.Commit();
                     return nuevoId;
@@ -155,6 +157,7 @@ namespace DAL
                 catch
                 {
                     tx.Rollback();
+                    tx.Rollback();
                     throw;
                 }
             }
@@ -169,30 +172,28 @@ namespace DAL
             {
                 try
                 {
-                    // 1) Patentes de la familia
+                    // 1) Recolectar patentes actuales
                     var patentes = new List<int>();
                     using (var cmd = new SqlCommand(
                         "SELECT IdPatente FROM FamiliaPatente WHERE IdFamilia = @f", cn, tx))
                     {
                         cmd.Parameters.AddWithValue("@f", f.Id);
                         using (var dr = cmd.ExecuteReader())
-                        {
                             while (dr.Read()) patentes.Add(dr.GetInt32(0));
-                        }
                     }
 
-                    // 2) Validación anti-huérfanas: cada patente debe seguir asignada
+                    // 2) Validar que ninguna quede huérfana
                     foreach (var idPat in patentes)
                     {
                         int restantes = PatenteDao.GetInstance()
-                            .CountAsignacionesPatenteExcluyendoFamilia(idPat, f.Id);
+                            .CountAsignacionesExcluyendoFamilia_tx(cn, tx, idPat, f.Id);
 
                         if (restantes <= 0)
                             throw new Exception(
                                 $"No se puede eliminar la familia. La patente Id={idPat} quedaría sin asignar.");
                     }
 
-                    // 3) Borrar relaciones (UsuarioFamilia y FamiliaPatente)
+                    // 3) Borrar relaciones y la familia
                     using (var delUF = new SqlCommand(
                         "DELETE FROM UsuarioFamilia WHERE IdFamilia = @f", cn, tx))
                     {
@@ -207,7 +208,6 @@ namespace DAL
                         delFP.ExecuteNonQuery();
                     }
 
-                    // 4) Borrar familia
                     int affected;
                     using (var delFam = new SqlCommand(
                         "DELETE FROM Familia WHERE IdFamilia = @id", cn, tx))
@@ -216,14 +216,14 @@ namespace DAL
                         affected = delFam.ExecuteNonQuery();
                     }
 
-                    // 5) DVV de tablas afectadas
+                    // 4) DVV de tablas afectadas
                     var dvv = DAL.DVVDao.GetInstance();
                     UpsertDVV_tx(cn, tx, "UsuarioFamilia", dvv.CalculateDVV("UsuarioFamilia"));
                     UpsertDVV_tx(cn, tx, "FamiliaPatente", dvv.CalculateDVV("FamiliaPatente"));
                     UpsertDVV_tx(cn, tx, "Familia", dvv.CalculateDVV("Familia"));
 
                     tx.Commit();
-                    return affected; // 1 si borró la familia, 0 si no
+                    return affected;
                 }
                 catch
                 {
@@ -233,72 +233,29 @@ namespace DAL
             }
         }
 
-        public int DeleteSafe(Familia f)
+        private static void UpsertDVV_tx(SqlConnection cn, SqlTransaction tx, string tabla, string dvv, int timeout = 120)
         {
-            if (f == null) throw new ArgumentNullException(nameof(f));
-
-            using (var cn = ConnectionFactory.Open())
-            using (var tx = cn.BeginTransaction())
+            const string check = "SELECT COUNT(*) FROM DVV WHERE Tabla = @t";
+            using (var cmd = new SqlCommand(check, cn, tx))
             {
-                try
+                cmd.CommandTimeout = timeout;
+                cmd.Parameters.AddWithValue("@t", tabla);
+                int c = Convert.ToInt32(cmd.ExecuteScalar());
+
+                string sql = c > 0
+                    ? "UPDATE DVV SET DVV = @d WHERE Tabla = @t"
+                    : "INSERT INTO DVV (Tabla, DVV) VALUES (@t, @d)";
+
+                using (var up = new SqlCommand(sql, cn, tx))
                 {
-                    // 1) Patentes de la familia
-                    var patentes = new List<int>();
-                    using (var cmd = new SqlCommand("SELECT IdPatente FROM FamiliaPatente WHERE IdFamilia=@f", cn, tx))
-                    {
-                        cmd.Parameters.AddWithValue("@f", f.Id);
-                        using (var dr = cmd.ExecuteReader())
-                            while (dr.Read()) patentes.Add(dr.GetInt32(0));
-                    }
-
-                    // 2) Validar que cada patente quede asignada en algún otro lado
-                    foreach (var idPat in patentes)
-                    {
-                        int restantes = PatenteDao.GetInstance()
-                            .CountAsignacionesPatenteExcluyendoFamilia(idPat, f.Id);
-
-                        if (restantes <= 0)
-                            throw new Exception($"No se puede borrar la familia '{f.Name}': la patente (Id={idPat}) quedaría sin asignar.");
-                    }
-
-                    // 3) Borrar relaciones Usuario-Familia y Familia-Patente
-                    using (var cmd = new SqlCommand("DELETE FROM UsuarioFamilia WHERE IdFamilia=@f", cn, tx))
-                    {
-                        cmd.Parameters.AddWithValue("@f", f.Id);
-                        cmd.ExecuteNonQuery();
-                    }
-                    using (var cmd = new SqlCommand("DELETE FROM FamiliaPatente WHERE IdFamilia=@f", cn, tx))
-                    {
-                        cmd.Parameters.AddWithValue("@f", f.Id);
-                        cmd.ExecuteNonQuery();
-                    }
-
-                    // 4) Borrar la familia
-                    int rows;
-                    using (var cmd = new SqlCommand("DELETE FROM Familia WHERE IdFamilia=@f", cn, tx))
-                    {
-                        cmd.Parameters.AddWithValue("@f", f.Id);
-                        rows = cmd.ExecuteNonQuery();
-                    }
-
-                    // 5) DVV
-                    var dvv1 = DVVDao.GetInstance().CalculateDVV("UsuarioFamilia");
-                    UpsertDVV_tx(cn, tx, "UsuarioFamilia", dvv1);
-                    var dvv2 = DVVDao.GetInstance().CalculateDVV("FamiliaPatente");
-                    UpsertDVV_tx(cn, tx, "FamiliaPatente", dvv2);
-                    var dvv3 = DVVDao.GetInstance().CalculateDVV("Familia");
-                    UpsertDVV_tx(cn, tx, "Familia", dvv3);
-
-                    tx.Commit();
-                    return rows;
-                }
-                catch
-                {
-                    tx.Rollback();
-                    throw;
+                    up.CommandTimeout = timeout;
+                    up.Parameters.AddWithValue("@t", tabla);
+                    up.Parameters.AddWithValue("@d", (object)dvv ?? DBNull.Value);
+                    up.ExecuteNonQuery();
                 }
             }
         }
+
 
         // ------------------- Relaciones --------------------
 
@@ -337,20 +294,18 @@ namespace DAL
             return list;
         }
 
-        // Compatibilidad: a veces llaman con objeto Familia
         public int SetPatentes(Familia familia, IEnumerable<int> patentesIds)
         {
             if (familia == null) throw new ArgumentNullException(nameof(familia));
             return SetPatentesDeFamilia(familia.Id, patentesIds);
         }
 
-        // …y a veces con id
         public int SetPatentes(int idFamilia, IEnumerable<int> patentesIds)
             => SetPatentesDeFamilia(idFamilia, patentesIds);
 
         public int SetPatentesDeFamilia(int idFamilia, IEnumerable<int> patentesIds)
         {
-            patentesIds = patentesIds?.Distinct() ?? Enumerable.Empty<int>();
+            var nuevas = (patentesIds ?? Enumerable.Empty<int>()).Distinct().ToList();
             int affected = 0;
 
             using (var cn = ConnectionFactory.Open())
@@ -358,41 +313,44 @@ namespace DAL
             {
                 try
                 {
-                    // 1) Leer actuales de la familia
+                    // 1) Leer asignaciones actuales con UPDLOCK (evita lecturas sucias sin mantener bloqueo de rango)
                     var actuales = new List<int>();
-                    using (var cmd = new SqlCommand("SELECT IdPatente FROM FamiliaPatente WHERE IdFamilia=@f", cn, tx))
+                    using (var cmd = new SqlCommand(
+                        "SELECT IdPatente FROM FamiliaPatente WITH (UPDLOCK) WHERE IdFamilia = @f", cn, tx)
+                    { CommandTimeout = 60 })
                     {
                         cmd.Parameters.AddWithValue("@f", idFamilia);
                         using (var dr = cmd.ExecuteReader())
                             while (dr.Read()) actuales.Add(dr.GetInt32(0));
                     }
 
-                    // 2) Determinar removidas
-                    var removidas = actuales.Except(patentesIds).ToList();
-
-                    // 3) Validación anti-huérfanas (si saco X de la familia, ¿sigue existiendo en otro lado?)
+                    // 2) Validación anti-huérfanas (solo para las que se quitarían)
+                    var removidas = actuales.Except(nuevas).ToList();
                     foreach (var idPat in removidas)
                     {
                         int restantes = PatenteDao.GetInstance()
-                            .CountAsignacionesPatenteExcluyendoFamilia(idPat, idFamilia);
+                            .CountAsignacionesExcluyendoFamilia_tx(cn, tx, idPat, idFamilia);
 
                         if (restantes <= 0)
-                            throw new Exception($"No se puede quitar la patente (Id={idPat}) de la familia porque quedaría sin asignar.");
+                            throw new Exception(
+                                $"No se puede quitar la patente (Id={idPat}) de la familia porque quedaría sin asignar.");
                     }
 
-                    // 4) Borrar e insertar
-                    using (var del = new SqlCommand("DELETE FROM FamiliaPatente WHERE IdFamilia = @f", cn, tx))
+                    // 3) Reemplazo completo
+                    using (var del = new SqlCommand(
+                        "DELETE FROM FamiliaPatente WHERE IdFamilia = @f", cn, tx)
+                    { CommandTimeout = 60 })
                     {
                         del.Parameters.AddWithValue("@f", idFamilia);
                         affected += del.ExecuteNonQuery();
                     }
 
-                    if (patentesIds.Any())
+                    if (nuevas.Any())
                     {
                         const string ins = "INSERT INTO FamiliaPatente (IdFamilia, IdPatente) VALUES (@f, @p)";
-                        foreach (var idPat in patentesIds)
+                        foreach (var idPat in nuevas)
                         {
-                            using (var cmd = new SqlCommand(ins, cn, tx))
+                            using (var cmd = new SqlCommand(ins, cn, tx) { CommandTimeout = 60 })
                             {
                                 cmd.Parameters.AddWithValue("@f", idFamilia);
                                 cmd.Parameters.AddWithValue("@p", idPat);
@@ -401,8 +359,9 @@ namespace DAL
                         }
                     }
 
-                    var dvv = DAL.DVVDao.GetInstance().CalculateDVV("FamiliaPatente");
-                    UpsertDVV_tx(cn, tx, "FamiliaPatente", dvv);
+                    // 4) DVV
+                    var dvvDao = DAL.DVVDao.GetInstance();
+                    UpsertDVV_tx(cn, tx, "FamiliaPatente", dvvDao.CalculateDVV("FamiliaPatente"));
 
                     tx.Commit();
                     return affected;
@@ -414,6 +373,9 @@ namespace DAL
                 }
             }
         }
+
+
+
 
         // ---------------------- Helpers --------------------
 

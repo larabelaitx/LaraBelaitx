@@ -94,6 +94,7 @@
             this.btnCerrarSesion.TabIndex = 17;
             this.btnCerrarSesion.Text = "Cerrar Sesión";
             this.btnCerrarSesion.UseVisualStyleBackColor = true;
+            this.btnCerrarSesion.Click += new System.EventHandler(this.btnCerrarSesion_Click);
             // 
             // btnDigitosVerificadores
             // 
@@ -105,6 +106,7 @@
             this.btnDigitosVerificadores.TabIndex = 16;
             this.btnDigitosVerificadores.Text = "Dígitos Verificadores";
             this.btnDigitosVerificadores.UseVisualStyleBackColor = true;
+            this.btnDigitosVerificadores.Click += new System.EventHandler(this.btnDigitosVerificadores_Click);
             // 
             // btnBackupRestore
             // 
@@ -116,6 +118,7 @@
             this.btnBackupRestore.TabIndex = 15;
             this.btnBackupRestore.Text = "Backup / Restore";
             this.btnBackupRestore.UseVisualStyleBackColor = true;
+            this.btnBackupRestore.Click += new System.EventHandler(this.btnBackupRestore_Click);
             // 
             // btnBitacora
             // 
@@ -127,6 +130,7 @@
             this.btnBitacora.TabIndex = 14;
             this.btnBitacora.Text = "Bitácora";
             this.btnBitacora.UseVisualStyleBackColor = true;
+            this.btnBitacora.Click += new System.EventHandler(this.btnBitacora_Click);
             // 
             // btnUsuariosRolesPermisos
             // 
@@ -149,6 +153,7 @@
             this.btnTarjetas.TabIndex = 12;
             this.btnTarjetas.Text = "Tarjetas";
             this.btnTarjetas.UseVisualStyleBackColor = true;
+            this.btnTarjetas.Click += new System.EventHandler(this.btnTarjetas_Click);
             // 
             // btnCuentas
             // 
@@ -160,6 +165,7 @@
             this.btnCuentas.TabIndex = 11;
             this.btnCuentas.Text = "Cuentas";
             this.btnCuentas.UseVisualStyleBackColor = true;
+            this.btnCuentas.Click += new System.EventHandler(this.btnCuentas_Click);
             // 
             // btnClientes
             // 
@@ -172,6 +178,7 @@
             this.btnClientes.TabIndex = 8;
             this.btnClientes.Text = "Clientes";
             this.btnClientes.UseVisualStyleBackColor = true;
+            this.btnClientes.Click += new System.EventHandler(this.btnClientes_Click);
             // 
             // dataGridView1
             // 
@@ -234,7 +241,7 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.LightSlateGray;
-            this.ClientSize = new System.Drawing.Size(1105, 557);
+            this.ClientSize = new System.Drawing.Size(1109, 543);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.panel1);
             this.Controls.Add(this.dataGridView1);
@@ -242,7 +249,6 @@
             this.Controls.Add(this.kryptonDataGridView1);
             this.Name = "Menu";
             this.Text = "Menu";
-            this.Load += new System.EventHandler(this.Menu_Load);
             ((System.ComponentModel.ISupportInitialize)(this.kryptonDataGridView1)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.kryptonGroupBox1.Panel)).EndInit();
             this.kryptonGroupBox1.Panel.ResumeLayout(false);

@@ -1,7 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.Collections.Generic;
 using DAL.Mappers;
 using BE;
 
@@ -9,16 +9,15 @@ namespace DAL
 {
     public class PatenteDao : ICRUD<Permiso>
     {
-        // Singleton
+        // ------------------ Singleton ------------------
         private static PatenteDao _instance;
         public static PatenteDao GetInstance() => _instance ?? (_instance = new PatenteDao());
         private PatenteDao() { }
 
         // ------------------ Lecturas ------------------
-
         public HashSet<Permiso> GetAll()
         {
-            const string sql = "SELECT IdPatente, Nombre FROM Patente ORDER BY Nombre"; // <-- NEW
+            const string sql = "SELECT IdPatente, Nombre FROM Patente ORDER BY Nombre";
             using (var cn = ConnectionFactory.Open())
             using (var cmd = new SqlCommand(sql, cn))
             using (var da = new SqlDataAdapter(cmd))
@@ -39,7 +38,7 @@ namespace DAL
                 cmd.Parameters.AddWithValue("@id", idPatente);
                 var dt = new DataTable();
                 da.Fill(dt);
-                if (dt.Rows.Count == 0) return null;        // <-- NEW
+                if (dt.Rows.Count == 0) return null;
                 return MPPatente.GetInstance().Map(dt);
             }
         }
@@ -48,8 +47,8 @@ namespace DAL
         {
             const string sql = @"
                 SELECT P.IdPatente, P.Nombre
-                FROM Patente AS P 
-                INNER JOIN UsuarioPatente AS UP ON P.IdPatente = UP.IdPatente 
+                FROM Patente P 
+                INNER JOIN UsuarioPatente UP ON P.IdPatente = UP.IdPatente 
                 WHERE UP.IdUsuario = @u";
             using (var cn = ConnectionFactory.Open())
             using (var cmd = new SqlCommand(sql, cn))
@@ -68,8 +67,8 @@ namespace DAL
         {
             const string sql = @"
                 SELECT P.IdPatente, P.Nombre
-                FROM Patente AS P 
-                INNER JOIN FamiliaPatente AS FP ON P.IdPatente = FP.IdPatente 
+                FROM Patente P 
+                INNER JOIN FamiliaPatente FP ON P.IdPatente = FP.IdPatente 
                 WHERE FP.IdFamilia = @f";
             using (var cn = ConnectionFactory.Open())
             using (var cmd = new SqlCommand(sql, cn))
@@ -84,43 +83,11 @@ namespace DAL
             }
         }
 
-        public HashSet<Permiso> GetBySector(int sector)
-        {
-            // Si NO hay columna Sector, devolvé todo ordenado (o eliminá este método si no se usa).
-            const string sql = "SELECT IdPatente, Nombre FROM Patente ORDER BY Nombre";
-            using (var cn = ConnectionFactory.Open())
-            using (var cmd = new SqlCommand(sql, cn))
-            using (var da = new SqlDataAdapter(cmd))
-            {
-                var dt = new DataTable();
-                da.Fill(dt);
-                return MPPatente.GetInstance().MapPatentes(dt);
-            }
-        }
+        // Si no usás “sector”, devolvemos todas.
+        public HashSet<Permiso> GetBySector(int sector) => GetAll();
 
-
-        // ------------------ Relaciones / util ------------------
-
-        public bool DeletePatenteFamilia(int idFamilia)
-        {
-            const string sql = "DELETE FROM FamiliaPatente WHERE IdFamilia = @f";
-            using (var cn = ConnectionFactory.Open())
-            using (var cmd = new SqlCommand(sql, cn))
-            {
-                cmd.Parameters.AddWithValue("@f", idFamilia);
-                return cmd.ExecuteNonQuery() > 0;
-            }
-        }
-
-        public bool CheckPatenteAsing(int idPatente)
-        {
-            int familias = GetCountFamiliasPatente(idPatente);
-            int usuarios = GetCountUsuarioPatentes(idPatente);
-            // Si la patente está asignada al menos a un lugar (familia/usuario) => true
-            return (familias + usuarios) > 0;
-        }
-
-        private int GetCountUsuarioPatentes(int idPatente)
+        // ------------------ Conteos SIN transacción ------------------
+        private int CountUsuarioPatentes(int idPatente)
         {
             const string sql = "SELECT COUNT(*) FROM UsuarioPatente WHERE IdPatente = @p";
             using (var cn = ConnectionFactory.Open())
@@ -131,7 +98,7 @@ namespace DAL
             }
         }
 
-        private int GetCountFamiliasPatente(int idPatente)
+        private int CountFamiliasPatente(int idPatente)
         {
             const string sql = "SELECT COUNT(*) FROM FamiliaPatente WHERE IdPatente = @p";
             using (var cn = ConnectionFactory.Open())
@@ -141,33 +108,65 @@ namespace DAL
                 return Convert.ToInt32(cmd.ExecuteScalar());
             }
         }
-        public int CountAsignacionesPatente(int idPatente)
-        {
-            return GetCountUsuarioPatentes(idPatente) + GetCountFamiliasPatente(idPatente);
-        }
 
-        // NEW: Conteo excluyendo un usuario (para evaluar si al quitar una patente al usuario, sigue viva en otro lado)
+        public int CountAsignacionesPatente(int idPatente)
+            => CountUsuarioPatentes(idPatente) + CountFamiliasPatente(idPatente);
+
         public int CountAsignacionesPatenteExcluyendoUsuario(int idPatente, int idUsuario)
         {
-            int enUsuariosExceptoEste = GetCountUsuarioPatentesExcepto(idPatente, idUsuario);
-            int enFamilias = GetCountFamiliasPatente(idPatente);
+            const string sqlU = "SELECT COUNT(*) FROM UsuarioPatente WHERE IdPatente=@p AND IdUsuario<>@u";
+            int enUsuariosExceptoEste;
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sqlU, cn))
+            {
+                cmd.Parameters.AddWithValue("@p", idPatente);
+                cmd.Parameters.AddWithValue("@u", idUsuario);
+                enUsuariosExceptoEste = Convert.ToInt32(cmd.ExecuteScalar());
+            }
+            int enFamilias = CountFamiliasPatente(idPatente);
             return enUsuariosExceptoEste + enFamilias;
         }
 
-        // NEW: Conteo excluyendo una familia (para evaluar si al quitar de familia, sigue viva en otro lado)
         public int CountAsignacionesPatenteExcluyendoFamilia(int idPatente, int idFamilia)
         {
-            int enUsuarios = GetCountUsuarioPatentes(idPatente);
-            int enFamiliasExceptoEsta = GetCountFamiliasPatenteExcepto(idPatente, idFamilia);
+            const string sqlF = "SELECT COUNT(*) FROM FamiliaPatente WHERE IdPatente=@p AND IdFamilia<>@f";
+            int enFamiliasExceptoEsta;
+            using (var cn = ConnectionFactory.Open())
+            using (var cmd = new SqlCommand(sqlF, cn))
+            {
+                cmd.Parameters.AddWithValue("@p", idPatente);
+                cmd.Parameters.AddWithValue("@f", idFamilia);
+                enFamiliasExceptoEsta = Convert.ToInt32(cmd.ExecuteScalar());
+            }
+            int enUsuarios = CountUsuarioPatentes(idPatente);
             return enUsuarios + enFamiliasExceptoEsta;
         }
 
-        // NEW (helpers privados)
-        private int GetCountUsuarioPatentesExcepto(int idPatente, int idUsuario)
+        // ------------------ Conteos CON transacción (únicos) ------------------
+        // Nota: nombres únicos para evitar CS0121 / CS0111
+        public int CountAsignacionesExcluyendoUsuario_tx(SqlConnection cn, SqlTransaction tx, int idPatente, int idUsuario)
+            => CountUsuarioPatentesExcepto_tx(cn, tx, idPatente, idUsuario)
+             + CountFamiliasPatente_tx(cn, tx, idPatente);
+
+        public int CountAsignacionesExcluyendoFamilia_tx(SqlConnection cn, SqlTransaction tx, int idPatente, int idFamilia)
+            => CountUsuarioPatentes_tx(cn, tx, idPatente)
+             + CountFamiliasPatenteExcepto_tx(cn, tx, idPatente, idFamilia);
+
+        // ----------- helpers privados (reusan misma cn/tx) -----------
+        private int CountUsuarioPatentes_tx(SqlConnection cn, SqlTransaction tx, int idPatente)
+        {
+            const string sql = "SELECT COUNT(*) FROM UsuarioPatente WHERE IdPatente = @p";
+            using (var cmd = new SqlCommand(sql, cn, tx) { CommandTimeout = 60 })
+            {
+                cmd.Parameters.AddWithValue("@p", idPatente);
+                return Convert.ToInt32(cmd.ExecuteScalar());
+            }
+        }
+
+        private int CountUsuarioPatentesExcepto_tx(SqlConnection cn, SqlTransaction tx, int idPatente, int idUsuario)
         {
             const string sql = "SELECT COUNT(*) FROM UsuarioPatente WHERE IdPatente=@p AND IdUsuario<>@u";
-            using (var cn = ConnectionFactory.Open())
-            using (var cmd = new SqlCommand(sql, cn))
+            using (var cmd = new SqlCommand(sql, cn, tx) { CommandTimeout = 60 })
             {
                 cmd.Parameters.AddWithValue("@p", idPatente);
                 cmd.Parameters.AddWithValue("@u", idUsuario);
@@ -175,11 +174,20 @@ namespace DAL
             }
         }
 
-        private int GetCountFamiliasPatenteExcepto(int idPatente, int idFamilia)
+        private int CountFamiliasPatente_tx(SqlConnection cn, SqlTransaction tx, int idPatente)
+        {
+            const string sql = "SELECT COUNT(*) FROM FamiliaPatente WHERE IdPatente = @p";
+            using (var cmd = new SqlCommand(sql, cn, tx) { CommandTimeout = 60 })
+            {
+                cmd.Parameters.AddWithValue("@p", idPatente);
+                return Convert.ToInt32(cmd.ExecuteScalar());
+            }
+        }
+
+        private int CountFamiliasPatenteExcepto_tx(SqlConnection cn, SqlTransaction tx, int idPatente, int idFamilia)
         {
             const string sql = "SELECT COUNT(*) FROM FamiliaPatente WHERE IdPatente=@p AND IdFamilia<>@f";
-            using (var cn = ConnectionFactory.Open())
-            using (var cmd = new SqlCommand(sql, cn))
+            using (var cmd = new SqlCommand(sql, cn, tx) { CommandTimeout = 60 })
             {
                 cmd.Parameters.AddWithValue("@p", idPatente);
                 cmd.Parameters.AddWithValue("@f", idFamilia);
@@ -188,16 +196,10 @@ namespace DAL
         }
 
         // ------------------ ICRUD<Permiso> ------------------
-        // Si NO usás altas/bajas/modificaciones de Patentes desde la app,
-        // dejamos NotImplemented para no introducir lógica que no usás.
-
         bool ICRUD<Permiso>.Add(Permiso alta) => throw new NotImplementedException();
         bool ICRUD<Permiso>.Update(Permiso update) => throw new NotImplementedException();
         bool ICRUD<Permiso>.Delete(Permiso delete) => throw new NotImplementedException();
-
-        // La interfaz pide List<Permiso>. Convertimos el HashSet a List para cumplir la firma.
         List<Permiso> ICRUD<Permiso>.GetAll() => new List<Permiso>(GetAll());
-
         Permiso ICRUD<Permiso>.GetById(int id) => GetById(id);
     }
 }

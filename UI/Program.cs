@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Windows.Forms;
-using Services;  
+using Services;  // por AppConn / ConfigStringConn
 
 namespace UI
 {
@@ -12,18 +12,19 @@ namespace UI
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
+            // Asegurar cadena de conexión antes de lanzar el Login
             while (true)
             {
-                if (AppConn.TryTest(out _)) break;  
+                if (AppConn.TryTest(out _)) break;
 
                 using (var cfg = new ConfigStringConn())
                 {
-                    var dr = cfg.ShowDialog();
-                    if (dr != DialogResult.OK)
-                        return; 
+                    if (cfg.ShowDialog() != DialogResult.OK)
+                        return; // usuario canceló la configuración
                 }
             }
 
+            // Toda la navegación queda encapsulada en Login
             Application.Run(new Login());
         }
     }

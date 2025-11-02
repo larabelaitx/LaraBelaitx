@@ -1,42 +1,89 @@
 ﻿using System;
 using System.Windows.Forms;
 using Krypton.Toolkit;
-using BLL.Services;
+using BLL.Contracts;
+using UI;
 
 namespace UI
 {
     public partial class MainURP : KryptonForm
     {
-        private readonly UsuarioService _usrSvc = new UsuarioService();
-        private readonly RolService _rolSvc = new RolService();
+        private readonly IUsuarioService _usrSvc;
+        private readonly IRolService _rolSvc;
 
-        public MainURP()
+        public MainURP(IUsuarioService usrSvc, IRolService rolSvc)
         {
             InitializeComponent();
+
+            _usrSvc = usrSvc ?? throw new ArgumentNullException(nameof(usrSvc));
+            _rolSvc = rolSvc ?? throw new ArgumentNullException(nameof(rolSvc));
+
+            // Eventos principales
+            btnRoles.Click += btnRoles_Click;
+            btnPermisos.Click += btnPermisos_Click;
+            btnVolver.Click += btnVolver_Click;
         }
 
-        // <-- Agregado para resolver CS1061
-        private void MainURP_Load(object sender, EventArgs e)
+        // --- Abrir gestión de Familias/Roles ---
+        private void btnRoles_Click(object sender, EventArgs e)
         {
-            // Nada por ahora
+            try
+            {
+                using (var frm = new MainFamilia(_rolSvc))
+                {
+                    frm.ShowDialog(this);
+                }
+            }
+            catch (Exception ex)
+            {
+                KryptonMessageBox.Show(this,
+                    "No se pudo abrir la gestión de Familias.\n\n" + ex.Message,
+                    "Error",
+                    KryptonMessageBoxButtons.OK,
+                    KryptonMessageBoxIcon.Error);
+            }
+        }
+
+        // --- Abrir gestión de Patentes ---
+        private void btnPermisos_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                using (var frm = new AltaPatente(_usrSvc, _rolSvc))
+                {
+                    frm.ShowDialog(this);
+                }
+            }
+            catch (Exception ex)
+            {
+                KryptonMessageBox.Show(this,
+                    "No se pudo abrir la gestión de Patentes.\n\n" + ex.Message,
+                    "Error",
+                    KryptonMessageBoxButtons.OK,
+                    KryptonMessageBoxIcon.Error);
+            }
+        }
+
+        // --- Volver / Cerrar ---
+        private void btnVolver_Click(object sender, EventArgs e)
+        {
+            Close();
         }
 
         private void btnUsuarios_Click(object sender, EventArgs e)
         {
-            using (var frm = new MainUsuarios(_usrSvc, _rolSvc))
-                frm.ShowDialog(this);
-        }
-
-        private void btnRoles_Click(object sender, EventArgs e)
-        {
-            using (var frm = new MainFamilia(_rolSvc))
-                frm.ShowDialog(this);
-        }
-
-        private void btnPermisos_Click(object sender, EventArgs e)
-        {
-            using (var frm = new AltaPatente(_usrSvc, _rolSvc))
-                frm.ShowDialog(this);
+            try
+            {
+                // ✅ Abrimos MainUsuarios con los services
+                using (var frm = new MainUsuarios(_usrSvc, _rolSvc))
+                    frm.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                KryptonMessageBox.Show(this,
+                    "No se pudo abrir la gestión de Usuarios.\n\n" + ex.Message,
+                    "Error", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
+            }
         }
     }
 }

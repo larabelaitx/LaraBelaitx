@@ -7,7 +7,6 @@ namespace DAL
 {
     /// <summary>
     /// Mantenimiento de BD (backup/restore) usando la cadena centralizada (ConnectionFactory).
-    /// Si ya estás usando DBDao.GetInstance().Backup/Restore, podés borrar esta clase.
     /// </summary>
     public static class DbMaintenance
     {
@@ -32,17 +31,23 @@ namespace DAL
             string toDisks = (partitions == 1)
                 ? $"DISK = N'{(baseName + ".bak").Replace("'", "''")}'"
                 : string.Join(", ", Enumerable.Range(1, partitions)
-                      .Select(i => $"DISK = N'{(baseName + $"_p{i}.bak").Replace("'", "''")}'"));
+                      .Select(i => $"DISK = N'{(baseName + $"_p{i:00}.bak").Replace("'", "''")}'"));
 
-            string sql = $@"
+            string backupSql = $@"
 BACKUP DATABASE [{db}]
 TO {toDisks}
-WITH INIT, COPY_ONLY, NAME = N'Backup {db} {stamp}', CHECKSUM, STATS = 10;";
+WITH INIT, COPY_ONLY, COMPRESSION, CHECKSUM, NAME = N'Backup {db} {stamp}', STATS = 10;";
+
+            string verifySql = $@"
+RESTORE VERIFYONLY FROM {toDisks} WITH CHECKSUM;";
 
             using (var cn = ConnectionFactory.Open())
-            using (var cmd = new SqlCommand(sql, cn))
+            using (var cmd = new SqlCommand(backupSql, cn))
             {
                 cmd.CommandTimeout = 0; // por si tarda
+                cmd.ExecuteNonQuery();
+                // Verificación del set de backup
+                cmd.CommandText = verifySql;
                 cmd.ExecuteNonQuery();
             }
         }
@@ -63,42 +68,50 @@ WITH INIT, COPY_ONLY, NAME = N'Backup {db} {stamp}', CHECKSUM, STATS = 10;";
 
             string fromDisks = string.Join(", ", fullPaths.Select(p => $"DISK = N'{p.Replace("'", "''")}'"));
 
-            // Restauramos desde master
-            var masterCnn = new SqlConnectionStringBuilder(ConnectionFactory.Current) { InitialCatalog = "master" }.ConnectionString;
+            // Usar master para el RESTORE
+            var masterCnn = new SqlConnectionStringBuilder(ConnectionFactory.Current)
+            {
+                InitialCatalog = "master"
+            }.ConnectionString;
 
             using (var cn = new SqlConnection(masterCnn))
             {
                 cn.Open();
-                using (var cmd = cn.CreateCommand())
-                using (var tx = cn.BeginTransaction())
-                {
-                    cmd.Transaction = tx;
-                    cmd.CommandTimeout = 0;
 
-                    try
-                    {
-                        cmd.CommandText = $@"
+                // Poner SINGLE_USER (sin transacción)
+                using (var cmd = cn.CreateCommand())
+                {
+                    cmd.CommandTimeout = 0;
+                    cmd.CommandText = $@"
 IF DB_ID('{db.Replace("'", "''")}') IS NOT NULL
 BEGIN
     ALTER DATABASE [{db}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 END";
-                        cmd.ExecuteNonQuery();
+                    cmd.ExecuteNonQuery();
+                }
 
+                try
+                {
+                    // RESTORE (sin transacción; SQL Server no lo permite dentro de user transactions)
+                    using (var cmd = cn.CreateCommand())
+                    {
+                        cmd.CommandTimeout = 0;
                         cmd.CommandText = $@"
 RESTORE DATABASE [{db}]
 FROM {fromDisks}
 WITH REPLACE, RECOVERY, CHECKSUM, STATS = 10;";
                         cmd.ExecuteNonQuery();
-
-                        cmd.CommandText = $@"ALTER DATABASE [{db}] SET MULTI_USER;";
-                        cmd.ExecuteNonQuery();
-
-                        tx.Commit();
                     }
-                    catch
+                }
+                finally
+                {
+                    // Volver a MULTI_USER aunque falle el restore
+                    using (var cmd = cn.CreateCommand())
                     {
-                        try { tx.Rollback(); } catch { /* ignore */ }
-                        throw;
+                        cmd.CommandTimeout = 0;
+                        cmd.CommandText = $@"IF DB_ID('{db.Replace("'", "''")}') IS NOT NULL
+ALTER DATABASE [{db}] SET MULTI_USER;";
+                        cmd.ExecuteNonQuery();
                     }
                 }
             }

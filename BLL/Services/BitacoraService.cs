@@ -21,13 +21,27 @@ namespace BLL.Services
             _dao = BitacoraDao.GetInstance();
         }
 
-        // -------- Consulta de usuarios (para combos) --------
+        // ===========================================================
+        //  ✅ 1) Listado de usuarios para combos
+        // ===========================================================
         public IEnumerable<string> Usuarios()
         {
-            return _dao.GetUsuarios() ?? Enumerable.Empty<string>();
+            var dt = _dao.GetUsuarios();
+            if (dt == null || dt.Rows.Count == 0)
+                return Enumerable.Empty<string>();
+
+            return dt.AsEnumerable()
+                     .Select(r => r.Table.Columns.Contains("Usuario")
+                                  ? r["Usuario"]?.ToString()
+                                  : null)
+                     .Where(s => !string.IsNullOrWhiteSpace(s))
+                     .Distinct()
+                     .OrderBy(s => s);
         }
 
-        // -------- Búsqueda (nombre “Buscar”) --------
+        // ===========================================================
+        //  ✅ 2) Búsqueda principal de bitácora (para grilla o UI)
+        // ===========================================================
         public (IList<BitacoraEntry> Rows, int Total) Buscar(
             DateTime? desde,
             DateTime? hasta,
@@ -40,7 +54,9 @@ namespace BLL.Services
             return (Mapear(dt), total);
         }
 
-        // -------- Wrapper con el nombre “Search” para la UI legacy --------
+        // ===========================================================
+        //  ✅ 3) Alias “Search” (para compatibilidad con UI legacy)
+        // ===========================================================
         public (IList<BitacoraEntry> Rows, int Total) Search(
             DateTime? desde,
             DateTime? hasta,
@@ -52,11 +68,14 @@ namespace BLL.Services
             return Buscar(desde, hasta, usuario, page, pageSize, ordenar);
         }
 
-        // ================== Mapeo ==================
+        // ===========================================================
+        //  ✅ 4) Mapeo DataTable → Lista de BitacoraEntry
+        // ===========================================================
         private static List<BitacoraEntry> Mapear(DataTable dt)
         {
             var list = new List<BitacoraEntry>();
-            if (dt == null || dt.Rows.Count == 0) return list;
+            if (dt == null || dt.Rows.Count == 0)
+                return list;
 
             foreach (DataRow r in dt.Rows)
             {
@@ -67,16 +86,19 @@ namespace BLL.Services
                     Usuario = Get<string>(r, "Usuario"),
                     Modulo = Get<string>(r, "Modulo"),
                     Accion = Get<string>(r, "Accion"),
-                    // la columna en DB suele ser INT; si tu modelo usa byte?, convertimos correctamente:
                     Severidad = (byte)GetNullableByte(r, "Severidad"),
                     Mensaje = Get<string>(r, "Mensaje"),
                     IP = Get<string>(r, "IP"),
                     Host = Get<string>(r, "Host")
                 });
             }
+
             return list;
         }
 
+        // ===========================================================
+        //  ✅ 5) Métodos auxiliares de conversión segura
+        // ===========================================================
         private static T Get<T>(DataRow row, string col)
         {
             if (!row.Table.Columns.Contains(col)) return default(T);
@@ -94,6 +116,5 @@ namespace BLL.Services
             try { return Convert.ToByte(v); }
             catch { return null; } // evita el CS0266
         }
-
     }
 }

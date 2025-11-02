@@ -16,10 +16,8 @@ namespace DAL
         private UsuarioDao() { }
         #endregion
 
-        // Acceso unificado al connection string actual
         private static string Cnn => ConnectionFactory.Current;
 
-        // helpers para DBNull
         private static object DbOrNull<T>(T? value) where T : struct
             => value.HasValue ? (object)value.Value : DBNull.Value;
 
@@ -109,7 +107,6 @@ namespace DAL
                      @Nombre, @Apellido, @Mail, @Documento,
                      @NroIntentos, @DVH, @DebeCambiarContrasena);";
 
-            // --- Validación de duplicados ---
             var exists = SqlHelpers.GetInstance(Cnn).ExecuteScalar(
                 checkPrev,
                 new List<SqlParameter>
@@ -122,7 +119,6 @@ namespace DAL
             if (Convert.ToInt32(exists) > 0)
                 throw new Exception("Usuario, Mail o Documento ya existente.");
 
-            // --- Parámetros del INSERT ---
             var ps = new List<SqlParameter>
             {
                 new SqlParameter("@IdEstado", usuario.EstadoUsuarioId > 0 ? usuario.EstadoUsuarioId : 1),
@@ -155,7 +151,6 @@ namespace DAL
 
         public bool Update(Usuario usuario, DVH dvh)
         {
-            // --------- Validaciones previas de unicidad (sin GetAll) ----------
             if (!string.IsNullOrWhiteSpace(usuario.Documento) &&
                 ExisteDocumento(usuario.Documento.Trim(), excluirId: usuario.Id))
                 throw new Exception("El documento ya está en uso por otro usuario.");
@@ -163,7 +158,6 @@ namespace DAL
             if (!string.IsNullOrWhiteSpace(usuario.Email) &&
                 ExisteEmail(usuario.Email.Trim(), excluirId: usuario.Id))
                 throw new Exception("El mail ya está en uso por otro usuario.");
-            // -------------------------------------------------------------------
 
             const string sql = @"
     UPDATE dbo.Usuario
@@ -172,7 +166,6 @@ namespace DAL
            Apellido               = @Apellido,
            Mail                   = @Mail,
            Documento              = @Documento,
-           -- Si mandás NULL en estos, conserva lo que hay
            PasswordHash           = COALESCE(@PasswordHash,       PasswordHash),
            PasswordSalt           = COALESCE(@PasswordSalt,       PasswordSalt),
            PasswordIterations     = COALESCE(@PasswordIterations, PasswordIterations),
@@ -192,7 +185,6 @@ namespace DAL
                 new SqlParameter("@Mail",      DbOrNull(usuario.Email)),
                 new SqlParameter("@Documento", DbOrNull(usuario.Documento)),
 
-                // VARBINARY (deja NULL si no querés tocar la clave)
                 VarBinaryParam("@PasswordHash", usuario.PasswordHash, 32),
                 VarBinaryParam("@PasswordSalt", usuario.PasswordSalt, 16),
                 new SqlParameter("@PasswordIterations",
@@ -217,13 +209,11 @@ namespace DAL
 
         public bool Delete(Usuario usuario, DVH dvh)
         {
-            // 1) No borrar el último usuario activo
             const string qCountActivos = "SELECT COUNT(*) FROM dbo.Usuario WHERE IdEstado <> 3";
             int activos = Convert.ToInt32(SqlHelpers.GetInstance(Cnn).ExecuteScalar(qCountActivos));
             if (activos <= 1)
                 throw new Exception("No se puede eliminar: quedaría el sistema sin usuarios.");
 
-            // 2) Baja lógica
             const string query = "UPDATE Usuario SET IdEstado = 3, DVH = @DVH WHERE IdUsuario = @IdUsuario";
             var ps = new List<SqlParameter>
             {
@@ -256,7 +246,6 @@ namespace DAL
 
             if (dt.Rows.Count == 0) return false;
 
-            // leer VARBINARY como byte[]
             var hash = dt.Rows[0]["PasswordHash"] as byte[];
             var salt = dt.Rows[0]["PasswordSalt"] as byte[];
             var iters = Convert.ToInt32(dt.Rows[0]["PasswordIterations"]);
@@ -270,9 +259,7 @@ namespace DAL
             const string sql = @"
         UPDATE dbo.Usuario
            SET UltimoLoginUtc = @dtUtc,
-               -- reseteo de intentos
                NroIntentos = 0,
-               -- si estaba bloqueado (2), pasa a habilitado (1); si no, deja como está
                IdEstado = CASE WHEN IdEstado = 2 THEN 1 ELSE IdEstado END,
                DVH = @DVH
          WHERE IdUsuario = @IdUsuario;";
@@ -286,7 +273,6 @@ namespace DAL
                 cmd.ExecuteNonQuery();
             }
 
-            // Recalcular DVV de la tabla Usuario
             var dvv = DVVDao.GetInstance().CalculateDVV("Usuario");
             DVVDao.GetInstance().AddUpdateDVV(new DVV { tabla = "Usuario", dvv = dvv });
         }
@@ -331,7 +317,6 @@ namespace DAL
 
             return Convert.ToInt32(count) > 0;
         }
-
         #endregion
 
         #region Relaciones Usuario-Familia
@@ -402,30 +387,26 @@ namespace DAL
             {
                 try
                 {
-                    // 1) Leer patentes actuales del usuario
                     var actuales = new List<int>();
-                    using (var cmd = new SqlCommand("SELECT IdPatente FROM UsuarioPatente WHERE IdUsuario=@u", cn, tx))
+                    using (var cmd = new SqlCommand(
+                        "SELECT IdPatente FROM UsuarioPatente WITH (UPDLOCK) WHERE IdUsuario=@u", cn, tx))
                     {
                         cmd.Parameters.AddWithValue("@u", idUsuario);
                         using (var dr = cmd.ExecuteReader())
                             while (dr.Read()) actuales.Add(dr.GetInt32(0));
                     }
 
-                    // 2) Determinar removidas
                     var removidas = actuales.Except(patentesIds).ToList();
-
-                    // 3) Validación anti-huérfanas
                     foreach (var idPat in removidas)
                     {
                         int restantes = PatenteDao.GetInstance()
-                            .CountAsignacionesPatenteExcluyendoUsuario(idPat, idUsuario);
-
+                            .CountAsignacionesExcluyendoUsuario_tx(cn, tx, idPat, idUsuario);
                         if (restantes <= 0)
                             throw new Exception($"No se puede quitar la patente (Id={idPat}) porque quedaría sin asignar.");
                     }
 
-                    // 4) Limpiar y reinsertar
-                    using (var del = new SqlCommand("DELETE FROM UsuarioPatente WHERE IdUsuario=@u", cn, tx))
+                    using (var del = new SqlCommand(
+                        "DELETE FROM UsuarioPatente WHERE IdUsuario=@u", cn, tx))
                     {
                         del.Parameters.AddWithValue("@u", idUsuario);
                         del.ExecuteNonQuery();
@@ -445,7 +426,6 @@ namespace DAL
                         }
                     }
 
-                    // 5) DVV
                     var dvv = DAL.DVVDao.GetInstance().CalculateDVV("UsuarioPatente");
                     DAL.DVVDao.GetInstance().AddUpdateDVV(new BE.DVV { tabla = "UsuarioPatente", dvv = dvv });
 
@@ -459,6 +439,9 @@ namespace DAL
                 }
             }
         }
+
+
+
         #endregion
 
         #region Helpers VARBINARY

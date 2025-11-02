@@ -175,7 +175,7 @@ namespace BLL.Services
                 mensaje: mensaje,
                 ip: null,
                 host: Environment.MachineName,
-                fecha: DateTime.Now
+                fechaUtc: DateTime.UtcNow   // <-- nombre correcto + UTC
             );
         }
     }
