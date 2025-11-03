@@ -27,15 +27,11 @@ namespace UI
 
             Load += AltaPatente_Load;
 
-            // mover disponibles -> asignadas
             btnAdd.Click += (s, e) => MoverSeleccion(lstDisponibles, _disponibles, _asignadas);
             btnAddAll.Click += (s, e) => MoverTodos(_disponibles, _asignadas);
-
-            // mover asignadas -> disponibles
             btnRemove.Click += (s, e) => MoverSeleccion(lstAsignadas, _asignadas, _disponibles);
             btnRemoveAll.Click += (s, e) => MoverTodos(_asignadas, _disponibles);
 
-            // buscar/guardar
             btnBuscar.Click += btnBuscar_Click;
             btnGuardar.Click += btnGuardar_Click;
             btnCancelar.Click += (s, e) => Close();
@@ -43,28 +39,23 @@ namespace UI
 
         private void AltaPatente_Load(object sender, EventArgs e)
         {
-            // Disponibles
             lstDisponibles.DataSource = _disponibles;
             lstDisponibles.DisplayMember = nameof(Permiso.Name);
             lstDisponibles.ValueMember = nameof(Permiso.Id);
             lstDisponibles.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended;
 
-            // Asignadas (directas)
             lstAsignadas.DataSource = _asignadas;
             lstAsignadas.DisplayMember = nameof(Permiso.Name);
             lstAsignadas.ValueMember = nameof(Permiso.Id);
             lstAsignadas.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended;
 
-            // Heredadas (promovibles)
             lstHeredadas.DataSource = _heredadas;
             lstHeredadas.DisplayMember = nameof(Permiso.Name);
             lstHeredadas.ValueMember = nameof(Permiso.Id);
             lstHeredadas.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended;
 
-            // Doble-click para promover
             lstHeredadas.DoubleClick += (s, ev) => PromoverHeredadas();
 
-            // Si existe un botón "Promover", lo enganchamos (opcional)
             if (this.Controls.Find("btnPromover", true).FirstOrDefault() is KryptonButton btnPromover)
                 btnPromover.Click += (s, ev) => PromoverHeredadas();
 
@@ -87,18 +78,29 @@ namespace UI
                 return;
             }
 
-            _usuario = _usuarios.GetByUserName(ingreso);
-            if (_usuario == null)
+            try
             {
-                KryptonMessageBox.Show("No se encontró el usuario indicado.", "Patentes",
-                    KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Information);
-                AlternarEdicion(false);
-                return;
-            }
+                _usuario = _usuarios.GetByUserName(ingreso);
+                if (_usuario == null)
+                {
+                    KryptonMessageBox.Show("No se encontró el usuario indicado.", "Patentes",
+                        KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Information);
+                    AlternarEdicion(false);
+                    return;
+                }
 
-            lblUsuarioSeleccionado.Values.Text = $"{_usuario.UserName} ({_usuario.LastName} {_usuario.Name})";
-            CargarListas(_usuario.Id);
-            AlternarEdicion(true);
+                lblUsuarioSeleccionado.Values.Text = $"{_usuario.UserName} ({_usuario.LastName} {_usuario.Name})";
+                CargarListas(_usuario.Id);
+                AlternarEdicion(true);
+            }
+            catch (Exception ex)
+            {
+                BLL.Bitacora.Error(null, $"Error al buscar usuario en Patentes: {ex.Message}",
+                    "UI", "Patentes_Buscar", host: Environment.MachineName);
+
+                KryptonMessageBox.Show("No se pudo realizar la búsqueda.\n\n" + ex.Message,
+                    "Error", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
+            }
         }
 
         private void CargarListas(int idUsuario)
@@ -107,23 +109,19 @@ namespace UI
             _asignadas.Clear();
             _heredadas.Clear();
 
-            // Todas las patentes
             var todas = (_roles.GetPatentes() ?? Enumerable.Empty<Patente>())
                         .OrderBy(p => p.Name)
                         .ToList();
 
-            // Directas del usuario
             var directas = new HashSet<int>(
                 (_roles.GetPatentesDeUsuario(idUsuario) ?? Enumerable.Empty<Permiso>())
                 .Select(p => p.Id));
 
-            // Heredadas por familias del usuario
             var familias = _roles.GetFamiliasUsuario(idUsuario) ?? new List<Familia>();
             var heredadas = new HashSet<int>(
                 familias.SelectMany(f => _roles.GetPatentesDeFamilia(f.Id) ?? new List<Patente>())
                         .Select(p => p.Id));
 
-            // Llenar bindings sin duplicar (directa tiene prioridad sobre heredada)
             foreach (var p in todas)
             {
                 if (directas.Contains(p.Id))
@@ -135,10 +133,6 @@ namespace UI
             }
         }
 
-        /// <summary>
-        /// Promueve las patentes seleccionadas en "Heredadas" a "Asignadas" (directas),
-        /// quitándolas de Heredadas/Disponibles y evitando duplicados.
-        /// </summary>
         private void PromoverHeredadas()
         {
             var sel = lstHeredadas.SelectedItems.Cast<Permiso>().ToList();
@@ -202,7 +196,6 @@ namespace UI
 
             try
             {
-                // Sólo directas (Asignadas). Distinct() evita cualquier duplicado accidental.
                 var idsDirectas = _asignadas.Select(p => p.Id).Distinct().ToList();
                 _roles.SetPatentesDeUsuario(_usuario.Id, idsDirectas);
 
@@ -214,6 +207,9 @@ namespace UI
             }
             catch (Exception ex)
             {
+                BLL.Bitacora.Error(_usuario?.Id, $"Error guardando patentes: {ex.Message}",
+                    "UI", "Patentes_Guardar", host: Environment.MachineName);
+
                 KryptonMessageBox.Show("No se pudo guardar la asignación.\n\n" + ex.Message, "Error",
                     KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
             }

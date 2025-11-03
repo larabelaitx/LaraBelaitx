@@ -9,7 +9,6 @@ using Services;
 
 namespace UI
 {
-
     public partial class AltaUsuario : KryptonForm
     {
         private readonly ModoForm _modo;
@@ -30,30 +29,17 @@ namespace UI
             _svcUsuarios = svcUsuarios ?? throw new ArgumentNullException(nameof(svcUsuarios));
             _svcRoles = svcRoles ?? throw new ArgumentNullException(nameof(svcRoles));
 
-            // Aseguro eventos mínimos por código (además de los del Designer si los tuviera)
             this.Load += AltaUsuario_Load;
-            // Si en el Designer están asignados estos mismos eventos, no pasa nada (se suman)
             if (btnGuardar != null) btnGuardar.Click += btnGuardar_Click;
             if (btnVolver != null) btnVolver.Click += btnVolver_Click;
             if (txtNombre != null) txtNombre.TextChanged += AutogenerarUsuario;
             if (txtApellido != null) txtApellido.TextChanged += AutogenerarUsuario;
         }
 
-        // ================== WRAPPERS buscados por el Designer ==================
-        // (evitan CS0103 si el .Designer.cs los referencia)
-
-        // Designer suele enganchar estos dos:
         private void btnGuardar_Click(object sender, EventArgs e) => BtnGuardar_Click(sender, e);
         private void btnVolver_Click(object sender, EventArgs e) => BtnVolver_Click(sender, e);
-
-        // Si el Designer engancha un TextChanged a "AutogenerarUsuario"
         private void AutogenerarUsuario(object sender, EventArgs e) => AutogenerarUsuario();
-
-        // Si el Designer hubiera enganchado "CargarCombos" al Load
         private void CargarCombos(object sender, EventArgs e) => CargarCombos();
-
-        // Si el Designer hubiera enganchado métodos sin parámetros (raro, pero puede pasar si se cambiaron nombres)
-        // Creo wrappers vacíos que delegan a la implementación real
         private void MapearBeAControles(object sender, EventArgs e)
         {
             if (_idUsuario.HasValue)
@@ -63,33 +49,43 @@ namespace UI
             }
         }
         private void AplicarModo(object sender, EventArgs e) => AplicarModo(_modo);
-        // ======================================================================
 
         private void AltaUsuario_Load(object sender, EventArgs e)
         {
             _ep = new ErrorProvider(this);
 
-            CargarCombos();
-
-            if (_idUsuario.HasValue)
+            try
             {
-                var u = _svcUsuarios.GetById(_idUsuario.Value);
-                if (u != null) MapearBeAControles(u);
-            }
+                CargarCombos();
 
-            AplicarModo(_modo);
+                if (_idUsuario.HasValue)
+                {
+                    var u = _svcUsuarios.GetById(_idUsuario.Value);
+                    if (u != null) MapearBeAControles(u);
+                }
+
+                AplicarModo(_modo);
+            }
+            catch (Exception ex)
+            {
+                BLL.Bitacora.Error(null, $"Error cargando AltaUsuario: {ex.Message}",
+                    "UI", "AltaUsuario_Load", host: Environment.MachineName);
+
+                KryptonMessageBox.Show(this,
+                    "Error cargando la pantalla:\n" + ex.Message,
+                    "Usuarios",
+                    KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
+                Close();
+            }
         }
 
-        // -------- Combos --------
         private void CargarCombos()
         {
-            // ROLES
             var roles = _svcRoles.ListarRoles() ?? Enumerable.Empty<BE.Permiso>();
             cboRol.DisplayMember = "Name";
             cboRol.ValueMember = "Id";
             cboRol.DataSource = roles.ToList();
 
-            // ESTADO
             cboEstado.Items.Clear();
             cboEstado.Items.Add("Activo");   // Habilitado
             cboEstado.Items.Add("Inactivo"); // Baja
@@ -104,7 +100,6 @@ namespace UI
 
             bool lectura = (modo == ModoForm.Ver);
 
-            // Deshabilita todos los controles salvo el botón Volver si es sólo lectura
             foreach (Control c in Controls) c.Enabled = !lectura;
             if (btnVolver != null) btnVolver.Enabled = true;
 
@@ -115,7 +110,6 @@ namespace UI
             }
         }
 
-        // Generación automática del username a partir de Nombre+Apellido
         private void AutogenerarUsuario()
         {
             if (_cargando) return;
@@ -168,21 +162,18 @@ namespace UI
             _ep.Clear();
             bool ok = true;
 
-            // Requeridos
             ok &= Requerido(txtNombre, "El nombre es obligatorio.");
             ok &= Requerido(txtApellido, "El apellido es obligatorio.");
             ok &= Requerido(txtDocumento, "El documento es obligatorio.");
             ok &= Requerido(txtEmail, "El email es obligatorio.");
             ok &= Requerido(txtUsuario, "El usuario es obligatorio.");
 
-            // Formato email
             if (ok && !EsEmailValido(txtEmail.Text))
             {
                 _ep.SetError(txtEmail, "Formato de email inválido.");
                 ok = false;
             }
 
-            // Rol y Estado
             if (ok && cboRol.SelectedItem == null)
             {
                 _ep.SetError(cboRol, "Debe seleccionar un rol.");
@@ -196,14 +187,12 @@ namespace UI
 
             if (!ok) return false;
 
-            // Normalizaciones y usuario actual (una sola vez)
             var actual = _idUsuario.HasValue ? _svcUsuarios.GetById(_idUsuario.Value) : null;
 
             string nuevoUser = (txtUsuario.Text ?? "").Trim();
             string nuevoMail = (txtEmail.Text ?? "").Trim();
             string nuevoDoc = (txtDocumento.Text ?? "").Trim();
 
-            // USERNAME único (si cambió)
             if (actual == null || !string.Equals(actual.UserName ?? "", nuevoUser, StringComparison.OrdinalIgnoreCase))
             {
                 if (_svcUsuarios.ExisteUsername(nuevoUser))
@@ -213,7 +202,6 @@ namespace UI
                 }
             }
 
-            // EMAIL único (si cambió)
             if (actual == null || !string.Equals(actual.Email ?? "", nuevoMail, StringComparison.OrdinalIgnoreCase))
             {
                 if (_svcUsuarios.ExisteEmail(nuevoMail))
@@ -223,7 +211,6 @@ namespace UI
                 }
             }
 
-            // DOCUMENTO único (si cambió)
             if (actual == null || !string.Equals(actual.Documento ?? "", nuevoDoc, StringComparison.OrdinalIgnoreCase))
             {
                 if (_svcUsuarios.ExisteDocumento(nuevoDoc))
@@ -251,7 +238,6 @@ namespace UI
             !string.IsNullOrWhiteSpace(email) &&
             Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.IgnoreCase);
 
-        // Guardar
         private void BtnGuardar_Click(object sender, EventArgs e)
         {
             if (!ValidarFormulario()) return;
@@ -262,14 +248,12 @@ namespace UI
             {
                 if (_modo == ModoForm.Alta)
                 {
-                    // generar clave temporal y crear usuario con hash
-                    string temp = Crypto.GenPassword(); // usá tu helper; si no, reemplazá por uno propio
+                    string temp = Crypto.GenPassword();
                     var okAlta = _svcUsuarios.CrearConPassword(be, temp);
 
                     if (!okAlta)
                         throw new Exception("No se pudo crear el usuario.");
 
-                    // descargar TXT “tipo mail”
                     using (var sfd = new SaveFileDialog
                     {
                         Filter = "Archivo de texto|*.txt",
@@ -308,6 +292,9 @@ namespace UI
             }
             catch (Exception ex)
             {
+                BLL.Bitacora.Error(null, $"AltaUsuario Guardar: {ex.Message}",
+                    "UI", "Usuario_Guardar", host: Environment.MachineName);
+
                 KryptonMessageBox.Show(
                     $"Ocurrió un error en la operación.\n\nDetalle: {ex.Message}",
                     "Usuarios",
@@ -316,7 +303,6 @@ namespace UI
             }
         }
 
-        // Volver / Cancelar
         private void BtnVolver_Click(object sender, EventArgs e)
         {
             if (HayDatosCargados() && _modo != ModoForm.Ver)
@@ -339,9 +325,6 @@ namespace UI
             }.Any(x => !string.IsNullOrWhiteSpace(x));
         }
 
-        private void panel1_Paint(object sender, PaintEventArgs e)
-        {
-
-        }
+        private void panel1_Paint(object sender, PaintEventArgs e) { }
     }
 }

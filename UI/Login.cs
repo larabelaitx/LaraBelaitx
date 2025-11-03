@@ -5,9 +5,10 @@ using Krypton.Toolkit;
 using BLL.Services;
 using BE;
 using Services;
-using DAL;
 using System.IO;
 using System.Text;
+using UI; 
+
 
 namespace UI
 {
@@ -18,6 +19,8 @@ namespace UI
         public Login()
         {
             InitializeComponent();
+            this.KeyPreview = true;
+            UI.F1Help.Wire(this, "seguridad.login", () => "es-AR");
             this.AcceptButton = btnIngresar;
         }
 
@@ -42,7 +45,6 @@ namespace UI
                         EstadoUsuarioId = BE.EstadosUsuario.Habilitado,
                         IdiomaId = 1,
                         Tries = 0
-                        // DebeCambiarContraseña = true; // si querés forzar al primer login
                     };
 
                     // crea con "1234"
@@ -67,6 +69,10 @@ namespace UI
             }
             catch (Exception ex)
             {
+                // Log de error de UI (no duplica nada de BLL)
+                BLL.Bitacora.Error(null, $"Error al crear usuario admin: {ex.Message}",
+                    "UI", "Login_Load", host: Environment.MachineName);
+
                 MessageBox.Show("Error al crear usuario admin:\n" + ex.Message,
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -94,9 +100,7 @@ namespace UI
 
                 if (!ok)
                 {
-                    BitacoraDao.GetInstance().AddLoginFail(usuario, null, host);
-
-                    // Si el service ya lo bloqueó, avisamos explícito
+                    // ⚠️ Sólo UI feedback (el Service ya loguea el fail/bloqueo)
                     if (u != null && u.EstadoUsuarioId == EstadosUsuario.Bloqueado)
                     {
                         MessageBox.Show(
@@ -106,7 +110,6 @@ namespace UI
                     }
                     else
                     {
-                        // mostrar intentos restantes si tenemos el usuario
                         int usados = Math.Max(0, u?.Tries ?? 0);
                         int restantes = Math.Max(0, _usuarios.MaxTries - usados);
 
@@ -128,8 +131,7 @@ namespace UI
                     {
                         if (dlg.ShowDialog(this) != DialogResult.OK)
                         {
-                            // No aceptó el cambio -> quedate en login
-                            return;
+                            return; // no continúa a menú
                         }
 
                         var hp = Services.PasswordService.Hash(dlg.NewPassword);
@@ -141,27 +143,26 @@ namespace UI
 
                         _usuarios.Actualizar(u);
 
-                        // Log opcional del cambio de clave
-                        DAL.BitacoraDao.GetInstance().Add(u?.Id, "Seguridad", "PasswordChange", 1,
-                            "Cambio de contraseña OK", null, host);
+                        // Log informativo desde UI (no duplica ningún evento de negocio)
+                        BLL.Bitacora.Info(u?.Id, "Cambio de contraseña OK",
+                            "Seguridad", "PasswordChange", host: host);
 
-                        // === Punto clave de seguridad ===
-                        // No seguimos con el ingreso. Forzamos re-login con la nueva clave.
+                        // Forzamos re-login con nueva clave
                         KryptonMessageBox.Show(
                             "Contraseña actualizada correctamente.\nVolvé a iniciar sesión con tu nueva contraseña.",
                             "Cambio de contraseña",
                             KryptonMessageBoxButtons.OK,
                             KryptonMessageBoxIcon.Information);
 
-                        txtUsuario.Text = u.UserName;   // lo dejamos precargado para que solo escriba la nueva clave
+                        txtUsuario.Text = u.UserName;
                         txtContraseña.Clear();
                         txtContraseña.Focus();
-                        return; // <- no se abre el menú
+                        return;
                     }
                 }
 
                 // ---- Login OK (sin cambio pendiente) ----
-                DAL.BitacoraDao.GetInstance().AddLoginOk(u?.Id, null, host);
+                // ✅ No logueamos acá: el Service ya grabó el LoginOK y evita duplicados.
 
                 MessageBox.Show($"¡Bienvenido {u?.NombreCompleto ?? usuario}!",
                     "Acceso", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -169,20 +170,22 @@ namespace UI
                 var menu = new Menu(u);
                 this.Hide();
 
-                // Al cerrar el menú, volvemos al Login (sin cerrar la app)
                 menu.FormClosed += (s2, e2) =>
                 {
                     txtContraseña.Clear();
-          
                     this.WindowState = FormWindowState.Normal;
                     this.Activate();
+                    this.Show(); // volvemos a mostrar el Login al cerrar el menú
                 };
 
                 menu.Show();
             }
             catch (Exception ex)
             {
-                DAL.BitacoraDao.GetInstance().AddError("Seguridad", "Login", ex.Message, null, null, host);
+                // Log de error UI (no duplica logs de negocio)
+                BLL.Bitacora.Error(null, $"Excepción en Login: {ex.Message}",
+                    "Seguridad", "Login", host: host);
+
                 MessageBox.Show("Error al intentar iniciar sesión:\n" + ex.Message,
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -243,7 +246,7 @@ namespace UI
                 var ok = svc.Actualizar(u);
                 if (!ok) throw new Exception("No se pudo actualizar el usuario.");
 
-                // 3) Descargar TXT con los datos (igual que en Alta)
+                // 3) Descargar TXT con los datos
                 using (var sfd = new SaveFileDialog
                 {
                     Filter = "Archivo de texto|*.txt",
@@ -275,6 +278,9 @@ namespace UI
             }
             catch (Exception ex)
             {
+                BLL.Bitacora.Error(null, $"Error en recuperación: {ex.Message}",
+                    "UI", "OlvideContrasena", host: Environment.MachineName);
+
                 MessageBox.Show(
                     "Error en la recuperación: " + ex.Message,
                     "Error",

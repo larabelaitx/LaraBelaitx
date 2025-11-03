@@ -4,17 +4,17 @@ using DAL;
 namespace BLL
 {
     /// <summary>
-    /// Logger mínimo y tolerante a fallas. Llama directo al DAO y nunca
-    /// deja propagar excepciones de bitácora.
+    /// Logger mínimo y tolerante. Centraliza severidades y SIEMPRE usa fecha UTC.
+    /// Nunca deja propagar excepciones de bitácora.
     /// </summary>
     public static class Bitacora
     {
         private static readonly BitacoraDao _dao = BitacoraDao.GetInstance();
 
-        // Centralizamos los códigos de severidad
+        // Severidades estándar (coinciden con tu tabla Criticidad: 1=Info, 2=Warn, 3=Error)
         private enum Sev { Info = 1, Warn = 2, Error = 3 }
 
-        // ---------- API genérica ----------
+        // ---------- API genérica (fecha opcional) ----------
         public static void Add(
             int? userId,
             string modulo,
@@ -50,9 +50,7 @@ namespace BLL
             TryAdd(userId, modulo, accion, (int)Sev.Error, mensaje, ip, host, DateTime.UtcNow);
         }
 
-        // ---------- Sobrecarga legacy (8 parámetros) ----------
-        // Hay sitios que históricamente llamaban con 'fecha' explícita.
-        // La conservamos para evitar CS1501/CS7036 si existen esos call-sites.
+        // ---------- Sobrecarga legacy (por compatibilidad) ----------
         public static void Add(
             int? userId,
             string modulo,
@@ -66,7 +64,7 @@ namespace BLL
             TryAdd(userId, modulo, accion, severidad, mensaje, ip, host, fechaUtc);
         }
 
-        // ---------- núcleo tolerante ----------
+        // ---------- Núcleo tolerante ----------
         private static void TryAdd(
             int? userId,
             string modulo,
@@ -79,14 +77,25 @@ namespace BLL
         {
             try
             {
-                // Tu DAO no acepta fecha explícita, así que la omitimos.
-                _dao.Add(userId, modulo, accion, severidad, mensaje, ip, host);
+                // Si no pasan host, registramos el de la máquina local (evita NULL innecesario)
+                var safeHost = string.IsNullOrWhiteSpace(host) ? Environment.MachineName : host;
+
+                // Usamos SIEMPRE el overload con fecha explícita del DAO
+                _dao.Add(
+                    usuarioId: userId,
+                    modulo: modulo,
+                    accion: accion,
+                    severidad: severidad,
+                    mensaje: mensaje,
+                    ip: ip,
+                    host: safeHost,
+                    fechaUtc: fechaUtc
+                );
             }
             catch
             {
                 // Nunca permitir que la bitácora rompa la app.
-                // Si querés debuguear algo, podés escribir:
-                // System.Diagnostics.Debug.WriteLine(ex.Message);
+                // (Opcional) Debug: System.Diagnostics.Debug.WriteLine(ex);
             }
         }
     }

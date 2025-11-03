@@ -2,10 +2,9 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using System.Windows.Forms;
+using Krypton.Toolkit;
 using BE;
 using BLL.Contracts;
-using Krypton.Toolkit;
 
 namespace UI
 {
@@ -25,7 +24,6 @@ namespace UI
             _roles = roles ?? throw new ArgumentNullException(nameof(roles));
             _idFamilia = idFamilia;
 
-            // eventos
             this.Load += AltaFamilia_Load;
 
             btnAdd.Click += (s, e) => MoverSeleccion(lstDisponibles, _disponibles, _asignadas);
@@ -38,7 +36,6 @@ namespace UI
             btnVolver.Click += (s, e) => Close();
         }
 
-        // ===== helpers de reflexión tolerante =====
         private static string GetStr(object o, params string[] names)
         {
             if (o == null) return null;
@@ -87,19 +84,17 @@ namespace UI
             }
         }
 
-        // ===== carga inicial =====
         private void AltaFamilia_Load(object sender, EventArgs e)
         {
-            // listboxes
             lstDisponibles.DataSource = _disponibles;
             lstDisponibles.DisplayMember = nameof(Patente.Name);
             lstDisponibles.ValueMember = nameof(Patente.Id);
-            lstDisponibles.SelectionMode = SelectionMode.MultiExtended;
+            lstDisponibles.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended;
 
             lstAsignadas.DataSource = _asignadas;
             lstAsignadas.DisplayMember = nameof(Patente.Name);
             lstAsignadas.ValueMember = nameof(Patente.Id);
-            lstAsignadas.SelectionMode = SelectionMode.MultiExtended;
+            lstAsignadas.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended;
 
             try
             {
@@ -109,8 +104,8 @@ namespace UI
                     if (_familia == null)
                     {
                         KryptonMessageBox.Show(this, "No se encontró la familia indicada.", "Familias",
-                       buttons: KryptonMessageBoxButtons.OK,
-                       icon: KryptonMessageBoxIcon.Information);
+                           buttons: KryptonMessageBoxButtons.OK,
+                           icon: KryptonMessageBoxIcon.Information);
                         return;
                     }
 
@@ -141,6 +136,9 @@ namespace UI
             }
             catch (Exception ex)
             {
+                BLL.Bitacora.Error(null, $"Error cargando AltaFamilia: {ex.Message}",
+                    "UI", "AltaFamilia_Load", host: Environment.MachineName);
+
                 KryptonMessageBox.Show(this,
                     "Error cargando datos: " + ex.Message,
                     "Familias",
@@ -157,13 +155,11 @@ namespace UI
             btnAdd.Enabled = btnAddAll.Enabled = btnRemove.Enabled = btnRemoveAll.Enabled = habilitar;
         }
 
-        // ===== mover ítems =====
         private static void MoverSeleccion(
-            KryptonListBox origenList,              // <- antes era ListBox
+            KryptonListBox origenList,
             BindingList<Patente> origen,
             BindingList<Patente> destino)
         {
-            // KryptonListBox también expone SelectedItems
             var items = origenList.SelectedItems.Cast<Patente>().ToList();
             if (!items.Any()) return;
 
@@ -188,7 +184,6 @@ namespace UI
             }
         }
 
-        // ===== guardar =====
         private void btnGuardar_Click(object sender, EventArgs e)
         {
             try
@@ -223,17 +218,21 @@ namespace UI
                     _roles.SetPatentesDeFamilia(entidad.Id, patentesIds);
                 }
 
-                     KryptonMessageBox.Show(this,
+                KryptonMessageBox.Show(this,
                     "Familia guardada correctamente.",
                     "Éxito",
                     buttons: KryptonMessageBoxButtons.OK,
                     icon: KryptonMessageBoxIcon.Information);
 
-                    DialogResult = DialogResult.OK;
-                    Close();
+                this.DialogResult = System.Windows.Forms.DialogResult.OK;
+
+                Close();
             }
             catch (Exception ex)
             {
+                BLL.Bitacora.Error(null, $"AltaFamilia Guardar: {ex.Message}",
+                    "UI", "Familia_Guardar", host: Environment.MachineName);
+
                 KryptonMessageBox.Show(this,
                 "No se pudo guardar la familia:\n" + ex.Message,
                 "Error",

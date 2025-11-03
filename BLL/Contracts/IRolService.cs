@@ -2,24 +2,26 @@
 
 public interface IRolService
 {
-    IEnumerable<BE.Permiso> ListarRoles();
+    // ===== Roles (Familias)
+    IEnumerable<BE.Familia> ListarRoles();
     BE.Familia GetFamilia(int id);
     int CrearFamilia(BE.Familia f);
     bool ActualizarFamilia(BE.Familia f);
+    bool EliminarFamilia(int idFamilia);
 
-    // Patentes (permisos simples)
+    // ===== Patentes
     List<BE.Patente> GetPatentes();
     List<BE.Patente> GetPatentesDeFamilia(int idFamilia);
     bool SetPatentesDeFamilia(int idFamilia, IEnumerable<int> idsPatentes);
 
-    // Asignación de familias a usuarios
+    // ===== Asignación de familias a usuarios
     List<BE.Familia> GetFamiliasUsuario(int idUsuario);
     bool SetFamiliasDeUsuario(int idUsuario, IEnumerable<int> familiasIds);
 
-    // Patentes directas por usuario
-    List<BE.Permiso> GetPatentesDeUsuario(int idUsuario);
+    // ===== Patentes por usuario
+    List<BE.Patente> GetPatentesDirectasDeUsuario(int idUsuario);   // solo directas
+    List<BE.Patente> GetPatentesEfectivasDeUsuario(int idUsuario);  // directas ∪ heredadas
     bool SetPatentesDeUsuario(int idUsuario, IEnumerable<int> idsPatentes);
+    List<BE.Patente> GetPatentesDeUsuario(int idUsuario);
 
-    // ➕ Faltaba (para el botón Eliminar del grid)
-    bool EliminarFamilia(int idFamilia);
 }
