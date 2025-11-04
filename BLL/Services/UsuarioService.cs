@@ -168,9 +168,9 @@ namespace BLL.Services
             if (lista.Count == 0) { motivo = "No se seleccionaron usuarios."; return false; }
 
             var totalHabilitados = _dao.CountHabilitados();
-            var habilitadosAEliminar = _dao.CountHabilitados(lista);
+            var habAEliminar = _dao.CountHabilitados(lista);
 
-            if (totalHabilitados - habilitadosAEliminar < 1)
+            if (totalHabilitados - habAEliminar < 1)
             {
                 motivo = "No se puede eliminar: quedaría el sistema sin usuarios.";
                 return false;
@@ -226,8 +226,10 @@ namespace BLL.Services
                     {
                         var dvvU = DAL.DVVDao.GetInstance().CalculateDVV("Usuario");
                         DAL.DVVDao.GetInstance().AddUpdateDVV(new BE.DVV { tabla = "Usuario", dvv = dvvU });
+
                         var dvvUF = DAL.DVVDao.GetInstance().CalculateDVV("UsuarioFamilia");
                         DAL.DVVDao.GetInstance().AddUpdateDVV(new BE.DVV { tabla = "UsuarioFamilia", dvv = dvvUF });
+
                         var dvvUP = DAL.DVVDao.GetInstance().CalculateDVV("UsuarioPatente");
                         DAL.DVVDao.GetInstance().AddUpdateDVV(new BE.DVV { tabla = "UsuarioPatente", dvv = dvvUP });
                     }
