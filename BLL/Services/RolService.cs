@@ -1,5 +1,4 @@
-﻿// BLL/Services/RolService.cs
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using BE;
@@ -26,14 +25,35 @@ namespace BLL.Services
         // ===== Familias =====
         public IEnumerable<Familia> ListarRoles() => _familiaDao.GetAll();
         public Familia GetFamilia(int id) => _familiaDao.GetById(id);
+
+        // Mantengo los básicos (por compatibilidad), pero PARA UI usar los atómicos de abajo
         public int CrearFamilia(Familia f) => _familiaDao.Add(f);
         public bool ActualizarFamilia(Familia f) => _familiaDao.Update(f);
 
         public bool EliminarFamilia(int idFamilia)
         {
             var fam = _familiaDao.GetById(idFamilia);
-            // Delete ahora es (Familia, DVH) y retorna bool
             return fam != null && _familiaDao.Delete(fam, null);
+        }
+
+        // === NUEVO: operaciones atómicas (familia + patentes en una sola transacción)
+        // Agregá estas firmas en IRolService si aún no están.
+        public int CrearFamiliaConPatentesSecure(int requesterUserId, Familia f, IEnumerable<int> patentesIds)
+        {
+            ThrowIfNotAllowed(requesterUserId, P_FAMILIA_ALTA);
+            var ids = (patentesIds ?? Enumerable.Empty<int>()).Distinct().ToList();
+            if (ids.Count == 0)
+                throw new InvalidOperationException("No se puede crear una familia sin patentes.");
+            return _familiaDao.AddWithPatentesAtomic(f, ids);
+        }
+
+        public bool ActualizarFamiliaConPatentesSecure(int requesterUserId, Familia f, IEnumerable<int> patentesIds)
+        {
+            ThrowIfNotAllowed(requesterUserId, P_FAMILIA_EDITAR);
+            var ids = (patentesIds ?? Enumerable.Empty<int>()).Distinct().ToList();
+            if (ids.Count == 0)
+                throw new InvalidOperationException("No se puede dejar la familia sin patentes.");
+            return _familiaDao.UpdateWithPatentesAtomic(f, ids);
         }
 
         // ===== Patentes =====
@@ -43,14 +63,30 @@ namespace BLL.Services
 
         public bool SetPatentesDeFamilia(int idFamilia, IEnumerable<int> idsPatentes)
         {
-            _familiaDao.SetPatentesDeFamilia(idFamilia, (idsPatentes ?? Enumerable.Empty<int>()).Distinct());
+            var ids = (idsPatentes ?? Enumerable.Empty<int>()).Distinct().ToList();
+            if (ids.Count == 0)
+                throw new InvalidOperationException("No se puede dejar la familia sin patentes.");
+            _familiaDao.SetPatentesDeFamilia(idFamilia, ids);
             return true;
         }
 
         // ===== Usuario–Familia/Patente =====
         public List<Familia> GetFamiliasUsuario(int idUsuario) => _familiaDao.GetFamiliasUsuario(idUsuario);
+
         public bool SetFamiliasDeUsuario(int idUsuario, IEnumerable<int> familiasIds)
-            => _usuarioDao.SetUsuarioFamilias(idUsuario, (familiasIds ?? Enumerable.Empty<int>()).Distinct().ToList());
+        {
+            var fams = (familiasIds ?? Enumerable.Empty<int>()).Distinct().ToList();
+
+            // Bloqueo: no permitir asignar familias sin patentes
+            foreach (var idF in fams)
+            {
+                var tienePatentes = _patenteDao.GetPatentesFamilia(idF)?.Any() == true;
+                if (!tienePatentes)
+                    throw new InvalidOperationException($"No se permite asignar familias sin patentes (IdFamilia={idF}).");
+            }
+
+            return _usuarioDao.SetUsuarioFamilias(idUsuario, fams);
+        }
 
         public List<Patente> GetPatentesDirectasDeUsuario(int idUsuario)
             => _patenteDao.GetPatentesUsuario(idUsuario).OfType<Patente>().ToList();
@@ -61,7 +97,6 @@ namespace BLL.Services
             var heredadas = (GetFamiliasUsuario(idUsuario) ?? new List<Familia>())
                             .SelectMany(f => GetPatentesDeFamilia(f.Id) ?? new List<Patente>())
                             .ToList();
-
             return directas.Concat(heredadas).GroupBy(p => p.Id).Select(g => g.First()).ToList();
         }
 
@@ -127,7 +162,7 @@ namespace BLL.Services
             return codigos.All(c => !string.IsNullOrWhiteSpace(c) && set.Contains(Norm(c)));
         }
 
-        // ===== Wrappers secure opcionales =====
+        // ===== Wrappers secure (existentes) =====
         public bool SetPatentesDeUsuarioSecure(int requesterUserId, int targetUserId, IEnumerable<int> idsPatentes)
         {
             ThrowIfNotAllowed(requesterUserId, P_USU_PAT_EDITAR);
@@ -137,19 +172,17 @@ namespace BLL.Services
         public bool SetPatentesDeFamiliaSecure(int requesterUserId, int idFamilia, IEnumerable<int> idsPatentes)
         {
             ThrowIfNotAllowed(requesterUserId, P_FAMILIA_EDITAR);
-            _familiaDao.SetPatentesDeFamilia(idFamilia, (idsPatentes ?? Enumerable.Empty<int>()).Distinct());
-            return true;
+            return SetPatentesDeFamilia(idFamilia, idsPatentes);
         }
         public bool SetFamiliasDeUsuarioSecure(int requesterUserId, int targetUserId, IEnumerable<int> familiasIds)
         {
             ThrowIfNotAllowed(requesterUserId, P_FAMILIA_EDITAR);
-            return _usuarioDao.SetUsuarioFamilias(targetUserId, (familiasIds ?? Enumerable.Empty<int>()).Distinct().ToList());
+            return SetFamiliasDeUsuario(targetUserId, familiasIds);
         }
         public bool EliminarFamiliaSecure(int requesterUserId, int idFamilia)
         {
             ThrowIfNotAllowed(requesterUserId, P_FAMILIA_ELIMINAR);
             var fam = _familiaDao.GetById(idFamilia);
-            // idem: pasar DVH (null) y usar bool
             return fam != null && _familiaDao.Delete(fam, null);
         }
         public int CrearFamiliaSecure(int requesterUserId, Familia f)

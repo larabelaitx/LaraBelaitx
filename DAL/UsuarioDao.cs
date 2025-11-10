@@ -363,11 +363,14 @@ namespace DAL
 
                     // 2️⃣ Evita dejar al sistema sin Administrador activo
                     const string qCheckAdmin = @"
-                SELECT COUNT(*) 
-                FROM Usuario u
-                JOIN UsuarioFamilia uf ON uf.IdUsuario = u.IdUsuario
-                JOIN Familia f ON f.IdFamilia = uf.IdFamilia
-                WHERE u.IdEstado = 1 AND f.Nombre = 'Administrador' AND u.IdUsuario <> @id;";
+                        SELECT COUNT(*) 
+                        FROM Usuario u
+                        JOIN UsuarioFamilia uf ON uf.IdUsuario = u.IdUsuario
+                        JOIN Familia f ON f.IdFamilia = uf.IdFamilia
+                        WHERE u.IdEstado = 1
+                          AND (UPPER(f.Nombre) = 'ADMIN' OR UPPER(f.Nombre) = 'ADMINISTRADOR')
+                          AND u.IdUsuario <> @id;";
+
 
                     using (var cmd = new SqlCommand(qCheckAdmin, cn, tx))
                     {
@@ -382,11 +385,11 @@ namespace DAL
 
                     // 3️⃣ Evita patentes huérfanas
                     const string qCheckPatentes = @"
-                SELECT COUNT(*) 
-                FROM UsuarioPatente up
-                WHERE up.IdUsuario = @id
-                  AND NOT EXISTS (SELECT 1 FROM UsuarioPatente up2 WHERE up2.IdPatente = up.IdPatente AND up2.IdUsuario <> @id)
-                  AND NOT EXISTS (SELECT 1 FROM FamiliaPatente fp WHERE fp.IdPatente = up.IdPatente);";
+                        SELECT COUNT(*) 
+                        FROM UsuarioPatente up
+                        WHERE up.IdUsuario = @id
+                          AND NOT EXISTS (SELECT 1 FROM UsuarioPatente up2 WHERE up2.IdPatente = up.IdPatente AND up2.IdUsuario <> @id)
+                          AND NOT EXISTS (SELECT 1 FROM FamiliaPatente fp WHERE fp.IdPatente = up.IdPatente);";
 
                     using (var cmd = new SqlCommand(qCheckPatentes, cn, tx))
                     {
@@ -542,22 +545,99 @@ namespace DAL
 
         public bool SetUsuarioFamilias(int idUsuario, IEnumerable<int> familiasIds)
         {
-            const string del = "DELETE FROM dbo.UsuarioFamilia WHERE IdUsuario = @U;";
-            SqlHelpers.GetInstance(Cnn).ExecuteQuery(del, new List<SqlParameter> { new SqlParameter("@U", idUsuario) });
+            var nuevas = (familiasIds ?? Enumerable.Empty<int>()).Distinct().ToList();
 
-            if (familiasIds != null)
+            using (var cn = ConnectionFactory.Open())
+            using (var tx = cn.BeginTransaction())
             {
-                foreach (var idF in familiasIds.Distinct())
+                try
                 {
-                    const string ins = "INSERT INTO dbo.UsuarioFamilia (IdUsuario, IdFamilia) VALUES (@U, @F);";
-                    SqlHelpers.GetInstance(Cnn).ExecuteQuery(
-                        ins, new List<SqlParameter> { new SqlParameter("@U", idUsuario), new SqlParameter("@F", idF) });
+                    // 0) ¿Existe el usuario?
+                    using (var cmd = new SqlCommand(
+                        "SELECT COUNT(*) FROM dbo.Usuario WITH (UPDLOCK, HOLDLOCK) WHERE IdUsuario=@u", cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@u", idUsuario);
+                        if (Convert.ToInt32(cmd.ExecuteScalar()) == 0)
+                            throw new Exception("El usuario no existe.");
+                    }
+
+                    // 1) Patentes directas actuales (cuentan como permisos efectivos)
+                    int patentesDirectas;
+                    using (var cmd = new SqlCommand(
+                        "SELECT COUNT(*) FROM dbo.UsuarioPatente WITH (UPDLOCK) WHERE IdUsuario=@u", cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@u", idUsuario);
+                        patentesDirectas = Convert.ToInt32(cmd.ExecuteScalar());
+                    }
+
+                    // 2) VALIDACIÓN ESTRICTA: cada familia debe existir y tener al menos 1 patente
+                    int patentesHeredadasTotales = 0;
+                    foreach (var idF in nuevas)
+                    {
+                        // existe la familia
+                        using (var cmd = new SqlCommand(
+                            "SELECT COUNT(*) FROM dbo.Familia WITH (UPDLOCK, HOLDLOCK) WHERE IdFamilia=@f", cn, tx))
+                        {
+                            cmd.Parameters.AddWithValue("@f", idF);
+                            if (Convert.ToInt32(cmd.ExecuteScalar()) == 0)
+                                throw new Exception($"La familia Id={idF} no existe.");
+                        }
+
+                        // cantidad de patentes de la familia
+                        int patFam;
+                        using (var cmd = new SqlCommand(
+                            "SELECT COUNT(*) FROM dbo.FamiliaPatente WITH (UPDLOCK) WHERE IdFamilia=@f", cn, tx))
+                        {
+                            cmd.Parameters.AddWithValue("@f", idF);
+                            patFam = Convert.ToInt32(cmd.ExecuteScalar());
+                        }
+
+                        if (patFam == 0)
+                            throw new Exception($"No se permite asignar familias sin patentes (IdFamilia={idF}).");
+
+                        patentesHeredadasTotales += patFam;
+                    }
+
+                    // 3) El resultado NO puede dejar al usuario sin permisos efectivos
+                    //    (directas + heredadas) > 0
+                    if ((patentesDirectas + patentesHeredadasTotales) == 0)
+                        throw new Exception("Operación inválida: el usuario quedaría sin permisos. Asigná al menos una familia con patentes o alguna patente directa.");
+
+                    // 4) Reemplazo total de familias (sin auto-asignar 'Admin' ni nada “por defecto”)
+                    using (var del = new SqlCommand(
+                        "DELETE FROM dbo.UsuarioFamilia WHERE IdUsuario=@u", cn, tx))
+                    {
+                        del.Parameters.AddWithValue("@u", idUsuario);
+                        del.ExecuteNonQuery();
+                    }
+
+                    if (nuevas.Any())
+                    {
+                        const string ins = "INSERT INTO dbo.UsuarioFamilia (IdUsuario, IdFamilia) VALUES (@u, @f)";
+                        foreach (var idF in nuevas)
+                        {
+                            using (var cmd = new SqlCommand(ins, cn, tx))
+                            {
+                                cmd.Parameters.AddWithValue("@u", idUsuario);
+                                cmd.Parameters.AddWithValue("@f", idF);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
+                    // 5) DVV de UsuarioFamilia
+                    var dvv = DVVDao.GetInstance().CalculateDVV_tx(cn, tx, "dbo.UsuarioFamilia");
+                    DVVDao.UpsertDVV_tx(cn, tx, "UsuarioFamilia", dvv);
+
+                    tx.Commit();
+                    return true;
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
                 }
             }
-
-            var dvv = DVVDao.GetInstance().CalculateDVV("dbo.UsuarioFamilia");
-            DVVDao.GetInstance().AddUpdateDVV(new DVV { tabla = "UsuarioFamilia", dvv = dvv });
-            return true;
         }
         #endregion
 

@@ -1,5 +1,6 @@
 ﻿// BLL.Contracts/IRolService.cs
 using System.Collections.Generic;
+using BE;
 
 public interface IRolService
 {
@@ -38,4 +39,6 @@ public interface IRolService
     bool EliminarFamiliaSecure(int requesterUserId, int idFamilia);
     int CrearFamiliaSecure(int requesterUserId, BE.Familia f);
     bool ActualizarFamiliaSecure(int requesterUserId, BE.Familia f);
+    int CrearFamiliaConPatentesSecure(int requesterUserId, Familia f, IEnumerable<int> patentesIds);
+    bool ActualizarFamiliaConPatentesSecure(int requesterUserId, Familia f, IEnumerable<int> patentesIds);
 }
