@@ -27,6 +27,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainUsuarios));
             this.panel1 = new System.Windows.Forms.Panel();
             this.label2 = new System.Windows.Forms.Label();
             this.btnVolver = new System.Windows.Forms.Button();
@@ -341,13 +342,12 @@
             this.btnAgregarr.TabIndex = 29;
             this.btnAgregarr.Text = "Agregar";
             this.btnAgregarr.UseVisualStyleBackColor = true;
-
             // 
             // MainUsuarios
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1103, 422);
+            this.ClientSize = new System.Drawing.Size(1088, 415);
             this.Controls.Add(this.btnAgregarr);
             this.Controls.Add(this.dgvUsuarios);
             this.Controls.Add(this.btnDescargar);
@@ -367,6 +367,7 @@
             this.Controls.Add(this.label3);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.panel1);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "MainUsuarios";
             this.Text = "MainUsuarios";
             this.Load += new System.EventHandler(this.MainUsuarios_Load);

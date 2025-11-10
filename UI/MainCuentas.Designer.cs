@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainCuentas));
             this.panel1 = new System.Windows.Forms.Panel();
             this.btnVolver = new System.Windows.Forms.Button();
             this.label2 = new System.Windows.Forms.Label();
@@ -205,7 +206,7 @@
             this.dgvCuentas.RowHeadersVisible = false;
             this.dgvCuentas.RowHeadersWidth = 51;
             this.dgvCuentas.RowTemplate.Height = 24;
-            this.dgvCuentas.Size = new System.Drawing.Size(1051, 276);
+            this.dgvCuentas.Size = new System.Drawing.Size(1055, 262);
             this.dgvCuentas.TabIndex = 21;
             // 
             // NumeroCuenta
@@ -267,7 +268,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1084, 538);
+            this.ClientSize = new System.Drawing.Size(1088, 524);
             this.Controls.Add(this.dgvCuentas);
             this.Controls.Add(this.btnDescargar);
             this.Controls.Add(this.btnAgregar);
@@ -280,9 +281,9 @@
             this.Controls.Add(this.label3);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.panel1);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "MainCuentas";
             this.Text = "MainCuentas";
-            this.Load += new System.EventHandler(this.MainCuentas_Load);
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.cboEstado)).EndInit();

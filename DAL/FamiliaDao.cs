@@ -163,75 +163,110 @@ namespace DAL
             }
         }
 
-        public int Delete(Familia f)
+        public bool Delete(Familia familia, DVH dvh)
         {
-            if (f == null) throw new ArgumentNullException(nameof(f));
-
             using (var cn = ConnectionFactory.Open())
             using (var tx = cn.BeginTransaction())
             {
                 try
                 {
-                    // 1) Recolectar patentes actuales
-                    var patentes = new List<int>();
+                    // 1️⃣ Verifica existencia de la familia
+                    int existe;
                     using (var cmd = new SqlCommand(
-                        "SELECT IdPatente FROM FamiliaPatente WHERE IdFamilia = @f", cn, tx))
+                        "SELECT COUNT(*) FROM dbo.Familia WITH (UPDLOCK, HOLDLOCK) WHERE IdFamilia = @id;", cn, tx))
                     {
-                        cmd.Parameters.AddWithValue("@f", f.Id);
-                        using (var dr = cmd.ExecuteReader())
-                            while (dr.Read()) patentes.Add(dr.GetInt32(0));
+                        cmd.Parameters.AddWithValue("@id", familia.Id);
+                        existe = Convert.ToInt32(cmd.ExecuteScalar());
+                    }
+                    if (existe == 0)
+                        throw new Exception("La familia a eliminar no existe.");
+
+                    // 2️⃣ Verifica usuarios asignados a la familia
+                    var usuariosAfectados = new List<int>();
+                    using (var cmd = new SqlCommand(
+                        "SELECT IdUsuario FROM dbo.UsuarioFamilia WHERE IdFamilia = @id;", cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@id", familia.Id);
+                        using (var rd = cmd.ExecuteReader())
+                            while (rd.Read()) usuariosAfectados.Add(rd.GetInt32(0));
                     }
 
-                    // 2) Validar que ninguna quede huérfana
-                    foreach (var idPat in patentes)
+                    // 3️⃣ Verifica si al menos un usuario quedaría sin permisos
+                    foreach (var idUsuario in usuariosAfectados)
                     {
-                        int restantes = PatenteDao.GetInstance()
-                            .CountAsignacionesExcluyendoFamilia_tx(cn, tx, idPat, f.Id);
+                        // ¿Tiene otras familias?
+                        int otrasFamilias;
+                        using (var cmd = new SqlCommand(
+                            "SELECT COUNT(*) FROM dbo.UsuarioFamilia WHERE IdUsuario = @u AND IdFamilia <> @f;", cn, tx))
+                        {
+                            cmd.Parameters.AddWithValue("@u", idUsuario);
+                            cmd.Parameters.AddWithValue("@f", familia.Id);
+                            otrasFamilias = Convert.ToInt32(cmd.ExecuteScalar());
+                        }
 
-                        if (restantes <= 0)
-                            throw new Exception(
-                                $"No se puede eliminar la familia. La patente Id={idPat} quedaría sin asignar.");
+                        // ¿Tiene patentes directas?
+                        int patentesDirectas;
+                        using (var cmd = new SqlCommand(
+                            "SELECT COUNT(*) FROM dbo.UsuarioPatente WHERE IdUsuario = @u;", cn, tx))
+                        {
+                            cmd.Parameters.AddWithValue("@u", idUsuario);
+                            patentesDirectas = Convert.ToInt32(cmd.ExecuteScalar());
+                        }
+
+                        if (otrasFamilias == 0 && patentesDirectas == 0)
+                            throw new Exception($"No se puede eliminar la familia '{familia.Name}': el usuario (Id={idUsuario}) quedaría sin permisos.");
                     }
 
-                    // 3) Borrar relaciones y la familia
-                    using (var delUF = new SqlCommand(
-                        "DELETE FROM UsuarioFamilia WHERE IdFamilia = @f", cn, tx))
+                    // 4️⃣ Verifica patentes huérfanas (sin usuarios ni otras familias)
+                    const string qHuérfanas = @"
+                SELECT COUNT(*)
+                FROM dbo.FamiliaPatente fp
+                WHERE fp.IdFamilia = @f
+                  AND NOT EXISTS (SELECT 1 FROM dbo.UsuarioPatente up WHERE up.IdPatente = fp.IdPatente)
+                  AND NOT EXISTS (SELECT 1 FROM dbo.FamiliaPatente fp2 WHERE fp2.IdPatente = fp.IdPatente AND fp2.IdFamilia <> fp.IdFamilia);";
+                    using (var cmd = new SqlCommand(qHuérfanas, cn, tx))
                     {
-                        delUF.Parameters.AddWithValue("@f", f.Id);
-                        delUF.ExecuteNonQuery();
+                        cmd.Parameters.AddWithValue("@f", familia.Id);
+                        if (Convert.ToInt32(cmd.ExecuteScalar()) > 0)
+                            throw new Exception($"No se puede eliminar la familia '{familia.Name}' porque dejaría patentes huérfanas.");
                     }
 
-                    using (var delFP = new SqlCommand(
-                        "DELETE FROM FamiliaPatente WHERE IdFamilia = @f", cn, tx))
+                    // 5️⃣ Elimina relaciones (en orden seguro)
+                    new SqlCommand("DELETE FROM dbo.FamiliaPatente WHERE IdFamilia = @id", cn, tx)
+                    { Parameters = { new SqlParameter("@id", familia.Id) } }.ExecuteNonQuery();
+
+                    new SqlCommand("DELETE FROM dbo.UsuarioFamilia WHERE IdFamilia = @id", cn, tx)
+                    { Parameters = { new SqlParameter("@id", familia.Id) } }.ExecuteNonQuery();
+
+                    // 6️⃣ Baja lógica o eliminación directa de la familia
+                    using (var cmd = new SqlCommand(
+                        "DELETE FROM dbo.Familia WHERE IdFamilia = @id;", cn, tx))
                     {
-                        delFP.Parameters.AddWithValue("@f", f.Id);
-                        delFP.ExecuteNonQuery();
+                        cmd.Parameters.AddWithValue("@id", familia.Id);
+                        cmd.ExecuteNonQuery();
                     }
 
-                    int affected;
-                    using (var delFam = new SqlCommand(
-                        "DELETE FROM Familia WHERE IdFamilia = @id", cn, tx))
-                    {
-                        delFam.Parameters.AddWithValue("@id", f.Id);
-                        affected = delFam.ExecuteNonQuery();
-                    }
+                    // 7️⃣ Recalcula DVV
+                    var dvvF = DVVDao.GetInstance().CalculateDVV_tx(cn, tx, "dbo.Familia");
+                    DVVDao.UpsertDVV_tx(cn, tx, "Familia", dvvF);
 
-                    // 4) DVV de tablas afectadas
-                    var dvv = DAL.DVVDao.GetInstance();
-                    UpsertDVV_tx(cn, tx, "UsuarioFamilia", dvv.CalculateDVV("UsuarioFamilia"));
-                    UpsertDVV_tx(cn, tx, "FamiliaPatente", dvv.CalculateDVV("FamiliaPatente"));
-                    UpsertDVV_tx(cn, tx, "Familia", dvv.CalculateDVV("Familia"));
+                    var dvvFP = DVVDao.GetInstance().CalculateDVV_tx(cn, tx, "dbo.FamiliaPatente");
+                    DVVDao.UpsertDVV_tx(cn, tx, "FamiliaPatente", dvvFP);
+
+                    var dvvUF = DVVDao.GetInstance().CalculateDVV_tx(cn, tx, "dbo.UsuarioFamilia");
+                    DVVDao.UpsertDVV_tx(cn, tx, "UsuarioFamilia", dvvUF);
 
                     tx.Commit();
-                    return affected;
+                    return true;
                 }
-                catch
+                catch (Exception ex)
                 {
                     tx.Rollback();
-                    throw;
+                    throw new Exception("Error al eliminar familia: " + ex.Message, ex);
                 }
             }
         }
+
 
         private static void UpsertDVV_tx(SqlConnection cn, SqlTransaction tx, string tabla, string dvv, int timeout = 120)
         {

@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(AltaPatente));
             this.panel1 = new System.Windows.Forms.Panel();
             this.btnVolver = new System.Windows.Forms.Button();
             this.label2 = new System.Windows.Forms.Label();
@@ -36,18 +37,18 @@
             this.btnBuscar = new Krypton.Toolkit.KryptonButton();
             this.lblUsuarioSeleccionado = new Krypton.Toolkit.KryptonLabel();
             this.grpAsignacion = new Krypton.Toolkit.KryptonGroupBox();
-            this.lstDisponibles = new Krypton.Toolkit.KryptonListBox();
-            this.lstAsignadas = new Krypton.Toolkit.KryptonListBox();
-            this.lstHeredadas = new Krypton.Toolkit.KryptonListBox();
-            this.lblDisponibles = new System.Windows.Forms.Label();
-            this.lblAsignadas = new System.Windows.Forms.Label();
-            this.lblHeredadas = new System.Windows.Forms.Label();
+            this.btnCancelar = new Krypton.Toolkit.KryptonButton();
+            this.btnGuardar = new Krypton.Toolkit.KryptonButton();
             this.btnRemoveAll = new Krypton.Toolkit.KryptonButton();
             this.btnRemove = new Krypton.Toolkit.KryptonButton();
             this.btnAddAll = new Krypton.Toolkit.KryptonButton();
             this.btnAdd = new Krypton.Toolkit.KryptonButton();
-            this.btnGuardar = new Krypton.Toolkit.KryptonButton();
-            this.btnCancelar = new Krypton.Toolkit.KryptonButton();
+            this.lblHeredadas = new System.Windows.Forms.Label();
+            this.lblAsignadas = new System.Windows.Forms.Label();
+            this.lblDisponibles = new System.Windows.Forms.Label();
+            this.lstHeredadas = new Krypton.Toolkit.KryptonListBox();
+            this.lstAsignadas = new Krypton.Toolkit.KryptonListBox();
+            this.lstDisponibles = new Krypton.Toolkit.KryptonListBox();
             this.panel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.grpAsignacion)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.grpAsignacion.Panel)).BeginInit();
@@ -139,59 +140,23 @@
             this.grpAsignacion.Size = new System.Drawing.Size(1063, 420);
             this.grpAsignacion.TabIndex = 37;
             // 
-            // lstDisponibles
+            // btnCancelar
             // 
-            this.lstDisponibles.Location = new System.Drawing.Point(41, 36);
-            this.lstDisponibles.Name = "lstDisponibles";
-            this.lstDisponibles.Size = new System.Drawing.Size(253, 263);
-            this.lstDisponibles.TabIndex = 0;
+            this.btnCancelar.Location = new System.Drawing.Point(607, 319);
+            this.btnCancelar.Name = "btnCancelar";
+            this.btnCancelar.Size = new System.Drawing.Size(201, 52);
+            this.btnCancelar.TabIndex = 45;
+            this.btnCancelar.Values.DropDownArrowColor = System.Drawing.Color.Empty;
+            this.btnCancelar.Values.Text = "Cancelar";
             // 
-            // lstAsignadas
+            // btnGuardar
             // 
-            this.lstAsignadas.Location = new System.Drawing.Point(406, 36);
-            this.lstAsignadas.Name = "lstAsignadas";
-            this.lstAsignadas.Size = new System.Drawing.Size(253, 263);
-            this.lstAsignadas.TabIndex = 1;
-            // 
-            // lstHeredadas
-            // 
-            this.lstHeredadas.Location = new System.Drawing.Point(739, 36);
-            this.lstHeredadas.Name = "lstHeredadas";
-            this.lstHeredadas.Size = new System.Drawing.Size(253, 263);
-            this.lstHeredadas.TabIndex = 2;
-            // 
-            // lblDisponibles
-            // 
-            this.lblDisponibles.AutoSize = true;
-            this.lblDisponibles.BackColor = System.Drawing.Color.Transparent;
-            this.lblDisponibles.Font = new System.Drawing.Font("Segoe UI Semibold", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.lblDisponibles.Location = new System.Drawing.Point(36, 5);
-            this.lblDisponibles.Name = "lblDisponibles";
-            this.lblDisponibles.Size = new System.Drawing.Size(118, 28);
-            this.lblDisponibles.TabIndex = 38;
-            this.lblDisponibles.Text = "Disponibles";
-            // 
-            // lblAsignadas
-            // 
-            this.lblAsignadas.AutoSize = true;
-            this.lblAsignadas.BackColor = System.Drawing.Color.Transparent;
-            this.lblAsignadas.Font = new System.Drawing.Font("Segoe UI Semibold", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.lblAsignadas.Location = new System.Drawing.Point(401, 5);
-            this.lblAsignadas.Name = "lblAsignadas";
-            this.lblAsignadas.Size = new System.Drawing.Size(104, 28);
-            this.lblAsignadas.TabIndex = 39;
-            this.lblAsignadas.Text = "Asignadas";
-            // 
-            // lblHeredadas
-            // 
-            this.lblHeredadas.AutoSize = true;
-            this.lblHeredadas.BackColor = System.Drawing.Color.Transparent;
-            this.lblHeredadas.Font = new System.Drawing.Font("Segoe UI Semibold", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.lblHeredadas.Location = new System.Drawing.Point(734, 5);
-            this.lblHeredadas.Name = "lblHeredadas";
-            this.lblHeredadas.Size = new System.Drawing.Size(110, 28);
-            this.lblHeredadas.TabIndex = 40;
-            this.lblHeredadas.Text = "Herededas";
+            this.btnGuardar.Location = new System.Drawing.Point(250, 319);
+            this.btnGuardar.Name = "btnGuardar";
+            this.btnGuardar.Size = new System.Drawing.Size(201, 52);
+            this.btnGuardar.TabIndex = 38;
+            this.btnGuardar.Values.DropDownArrowColor = System.Drawing.Color.Empty;
+            this.btnGuardar.Values.Text = "Guardar";
             // 
             // btnRemoveAll
             // 
@@ -237,35 +202,72 @@
             this.btnAdd.Values.DropDownArrowColor = System.Drawing.Color.Empty;
             this.btnAdd.Values.Text = ">";
             // 
-            // btnGuardar
+            // lblHeredadas
             // 
-            this.btnGuardar.Location = new System.Drawing.Point(250, 319);
-            this.btnGuardar.Name = "btnGuardar";
-            this.btnGuardar.Size = new System.Drawing.Size(201, 52);
-            this.btnGuardar.TabIndex = 38;
-            this.btnGuardar.Values.DropDownArrowColor = System.Drawing.Color.Empty;
-            this.btnGuardar.Values.Text = "Guardar";
+            this.lblHeredadas.AutoSize = true;
+            this.lblHeredadas.BackColor = System.Drawing.Color.Transparent;
+            this.lblHeredadas.Font = new System.Drawing.Font("Segoe UI Semibold", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblHeredadas.Location = new System.Drawing.Point(734, 5);
+            this.lblHeredadas.Name = "lblHeredadas";
+            this.lblHeredadas.Size = new System.Drawing.Size(110, 28);
+            this.lblHeredadas.TabIndex = 40;
+            this.lblHeredadas.Text = "Herededas";
             // 
-            // btnCancelar
+            // lblAsignadas
             // 
-            this.btnCancelar.Location = new System.Drawing.Point(607, 319);
-            this.btnCancelar.Name = "btnCancelar";
-            this.btnCancelar.Size = new System.Drawing.Size(201, 52);
-            this.btnCancelar.TabIndex = 45;
-            this.btnCancelar.Values.DropDownArrowColor = System.Drawing.Color.Empty;
-            this.btnCancelar.Values.Text = "Cancelar";
+            this.lblAsignadas.AutoSize = true;
+            this.lblAsignadas.BackColor = System.Drawing.Color.Transparent;
+            this.lblAsignadas.Font = new System.Drawing.Font("Segoe UI Semibold", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblAsignadas.Location = new System.Drawing.Point(401, 5);
+            this.lblAsignadas.Name = "lblAsignadas";
+            this.lblAsignadas.Size = new System.Drawing.Size(104, 28);
+            this.lblAsignadas.TabIndex = 39;
+            this.lblAsignadas.Text = "Asignadas";
+            // 
+            // lblDisponibles
+            // 
+            this.lblDisponibles.AutoSize = true;
+            this.lblDisponibles.BackColor = System.Drawing.Color.Transparent;
+            this.lblDisponibles.Font = new System.Drawing.Font("Segoe UI Semibold", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblDisponibles.Location = new System.Drawing.Point(36, 5);
+            this.lblDisponibles.Name = "lblDisponibles";
+            this.lblDisponibles.Size = new System.Drawing.Size(118, 28);
+            this.lblDisponibles.TabIndex = 38;
+            this.lblDisponibles.Text = "Disponibles";
+            // 
+            // lstHeredadas
+            // 
+            this.lstHeredadas.Location = new System.Drawing.Point(739, 36);
+            this.lstHeredadas.Name = "lstHeredadas";
+            this.lstHeredadas.Size = new System.Drawing.Size(253, 263);
+            this.lstHeredadas.TabIndex = 2;
+            // 
+            // lstAsignadas
+            // 
+            this.lstAsignadas.Location = new System.Drawing.Point(406, 36);
+            this.lstAsignadas.Name = "lstAsignadas";
+            this.lstAsignadas.Size = new System.Drawing.Size(253, 263);
+            this.lstAsignadas.TabIndex = 1;
+            // 
+            // lstDisponibles
+            // 
+            this.lstDisponibles.Location = new System.Drawing.Point(41, 36);
+            this.lstDisponibles.Name = "lstDisponibles";
+            this.lstDisponibles.Size = new System.Drawing.Size(253, 263);
+            this.lstDisponibles.TabIndex = 0;
             // 
             // AltaPatente
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1086, 573);
+            this.ClientSize = new System.Drawing.Size(1088, 566);
             this.Controls.Add(this.grpAsignacion);
             this.Controls.Add(this.lblUsuarioSeleccionado);
             this.Controls.Add(this.btnBuscar);
             this.Controls.Add(this.txtUsuario);
             this.Controls.Add(this.lblUsuario);
             this.Controls.Add(this.panel1);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "AltaPatente";
             this.Text = "AltaPatente";
             this.Load += new System.EventHandler(this.AltaPatente_Load);

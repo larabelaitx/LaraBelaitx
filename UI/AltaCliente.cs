@@ -1,36 +1,63 @@
 ﻿using System;
 using System.Windows.Forms;
 using Krypton.Toolkit;
-using BLL.Services;  
 using BE;
-using BLL.Contracts;  
-
+using BLL.Contracts;
+using BLL.Services;
+using UI.Common; // ModoForm
+using UI.Seguridad; // Perms
 
 namespace UI
 {
     public partial class AltaCliente : KryptonForm
     {
-        public enum FormMode { Alta, Edicion, Consulta }
         private readonly IClienteService _service;
-        private Cliente _cliente;              
-        public FormMode Modo { get; private set; } = FormMode.Alta;
+        private readonly IRolService _roles;
+        private readonly int? _currentUserId;
+
+        private Cliente _cliente;
+        public ModoForm Modo { get; private set; } = ModoForm.Alta;
         public int? IdCliente { get; private set; }
+
+        private const string P_CLIENTE_ALTA = Perms.Cliente_Alta;
+        private const string P_CLIENTE_EDITAR = Perms.Cliente_Editar;
+        private const string P_CLIENTE_VER = Perms.Cliente_Listar;
+
         public AltaCliente()
+            : this(new ClienteService(), new RolService(), ModoForm.Alta, null, null, null) { }
+
+        public AltaCliente(IClienteService service, ModoForm modo, int? idCliente = null, Cliente cliente = null, int? currentUserId = null)
+            : this(service, new RolService(), modo, idCliente, cliente, currentUserId) { }
+
+        public AltaCliente(IClienteService service, IRolService roles, ModoForm modo,
+                           int? idCliente = null, Cliente cliente = null, int? currentUserId = null)
         {
             InitializeComponent();
-            this.Load += AltaCliente_Load;
-        }
-        public AltaCliente(IClienteService service, FormMode modo, int? idCliente = null, Cliente cliente = null) : this()
-        {
+            StartPosition = FormStartPosition.CenterParent;
+
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _roles = roles ?? throw new ArgumentNullException(nameof(roles));
+            _currentUserId = currentUserId;
+
             Modo = modo;
             IdCliente = idCliente;
             _cliente = cliente;
+
+            Load += AltaCliente_Load;
             btnGuardar.Click += btnGuardar_Click;
-            btnVolver.Click += btnVolver_Click;
+            btnVolver.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
+
+            cboEstadoCivil.DropDownStyle = ComboBoxStyle.DropDownList;
+            cboSituacionFiscal.DropDownStyle = ComboBoxStyle.DropDownList;
+            cboEsPep.DropDownStyle = ComboBoxStyle.DropDownList;
         }
+
         private void AltaCliente_Load(object sender, EventArgs e)
         {
+            if (Modo == ModoForm.Alta && !CheckAllowed(P_CLIENTE_ALTA)) { Close(); return; }
+            if (Modo == ModoForm.Editar && !CheckAllowed(P_CLIENTE_EDITAR)) { Close(); return; }
+            if (Modo == ModoForm.Ver && !CheckAllowed(P_CLIENTE_VER)) { Close(); return; }
+
             try
             {
                 CargarCombos();
@@ -38,38 +65,40 @@ namespace UI
                 if (_cliente == null && IdCliente.HasValue && IdCliente.Value > 0)
                     _cliente = _service.GetById(IdCliente.Value);
 
-                if (_cliente != null)
-                    CargarDesdeEntidad(_cliente);
-                else
-                    SetDefaults();
+                if (_cliente != null) CargarDesdeEntidad(_cliente);
+                else SetDefaults();
 
                 AjustarUIxModo();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                KryptonMessageBox.Show(this, "Cliente creado con éxito.", "OK");
+                KryptonMessageBox.Show(this, "No se pudo cargar la pantalla.\n\n" + ex.Message,
+                    "Error", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
                 DialogResult = DialogResult.Cancel;
                 Close();
             }
         }
 
+        private bool CheckAllowed(string patente)
+        {
+            if (!_currentUserId.HasValue || _currentUserId.Value <= 0 || !_roles.TienePatente(_currentUserId.Value, patente))
+            {
+                KryptonMessageBox.Show(this,
+                    $"No tenés permiso para acceder a esta funcionalidad.\n({patente})",
+                    "Acceso denegado", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Warning);
+                return false;
+            }
+            return true;
+        }
+
         private void CargarCombos()
         {
-            // Estado Civil
             cboEstadoCivil.Items.Clear();
-            cboEstadoCivil.Items.AddRange(new object[]
-            {
-                "Soltero/a", "Casado/a", "Divorciado/a", "Viudo/a", "Unión convivencial"
-            });
+            cboEstadoCivil.Items.AddRange(new object[] { "Soltero/a", "Casado/a", "Divorciado/a", "Viudo/a", "Unión convivencial" });
 
-            // Situación Fiscal
             cboSituacionFiscal.Items.Clear();
-            cboSituacionFiscal.Items.AddRange(new object[]
-            {
-                "Monotributo", "Responsable Inscripto", "Exento", "Consumidor Final", "No Responsable"
-            });
+            cboSituacionFiscal.Items.AddRange(new object[] { "Monotributo", "Responsable Inscripto", "Exento", "Consumidor Final", "No Responsable" });
 
-            // Es PEP
             cboEsPep.Items.Clear();
             cboEsPep.Items.AddRange(new object[] { "No", "Sí" });
         }
@@ -79,52 +108,54 @@ namespace UI
             dtpFechaNacimiento.Value = new DateTime(1990, 1, 1);
             if (cboEstadoCivil.Items.Count > 0) cboEstadoCivil.SelectedIndex = 0;
             if (cboSituacionFiscal.Items.Count > 0) cboSituacionFiscal.SelectedIndex = 0;
-            if (cboEsPep.Items.Count > 0) cboEsPep.SelectedIndex = 0; // "No"
+            if (cboEsPep.Items.Count > 0) cboEsPep.SelectedIndex = 0;
         }
 
         private void AjustarUIxModo()
         {
             switch (Modo)
             {
-                case FormMode.Alta:
+                case ModoForm.Alta:
                     Text = "ITX - Alta de Cliente";
-                    this.AcceptButton = btnGuardar;
+                    AcceptButton = btnGuardar;
+                    btnGuardar.Visible = true;
+                    HabilitarCampos(true);
                     break;
-
-                case FormMode.Edicion:
+                case ModoForm.Editar:
                     Text = "ITX - Editar Cliente";
-                    this.AcceptButton = btnGuardar;
+                    AcceptButton = btnGuardar;
+                    btnGuardar.Visible = true;
+                    HabilitarCampos(true);
                     break;
-
-                case FormMode.Consulta:
+                case ModoForm.Ver:
                     Text = "ITX - Ver Cliente";
                     btnGuardar.Visible = false;
-                    DeshabilitarCampos();
+                    HabilitarCampos(false);
                     break;
             }
         }
 
-        private void DeshabilitarCampos()
+        private void HabilitarCampos(bool enabled)
         {
-            txtNombre.ReadOnly = true;
-            txtApellido.ReadOnly = true;
-            dtpFechaNacimiento.Enabled = false;
-            txtLugarNacimiento.ReadOnly = true;
-            txtNacionalidad.ReadOnly = true;
-            cboEstadoCivil.Enabled = false;
-            txtDocumento.ReadOnly = true;
-            txtCUIT.ReadOnly = true;
-            txtDomicilio.ReadOnly = true;
-            txtTelefono.ReadOnly = true;
-            txtCorreo.ReadOnly = true;
-            txtOcupacion.ReadOnly = true;
-            cboSituacionFiscal.Enabled = false;
-            cboEsPep.Enabled = false;
+            txtNombre.ReadOnly = !enabled;
+            txtApellido.ReadOnly = !enabled;
+            dtpFechaNacimiento.Enabled = enabled;
+            txtLugarNacimiento.ReadOnly = !enabled;
+            txtNacionalidad.ReadOnly = !enabled;
+            cboEstadoCivil.Enabled = enabled;
+            txtDocumento.ReadOnly = !enabled;
+            txtCUIT.ReadOnly = !enabled;
+            txtDomicilio.ReadOnly = !enabled;
+            txtTelefono.ReadOnly = !enabled;
+            txtCorreo.ReadOnly = !enabled;
+            txtOcupacion.ReadOnly = !enabled;
+            cboSituacionFiscal.Enabled = enabled;
+            cboEsPep.Enabled = enabled;
         }
+
         private void CargarDesdeEntidad(Cliente c)
         {
             if (c == null) return;
-
             txtNombre.Text = c.Nombre ?? "";
             txtApellido.Text = c.Apellido ?? "";
             dtpFechaNacimiento.Value = c.FechaNacimiento == default ? DateTime.Today : c.FechaNacimiento;
@@ -158,6 +189,7 @@ namespace UI
             dest.SituacionFiscal = cboSituacionFiscal.SelectedItem?.ToString();
             dest.EsPEP = (cboEsPep.SelectedItem?.ToString() ?? "No") == "Sí";
         }
+
         private bool Validar()
         {
             if (string.IsNullOrWhiteSpace(txtNombre.Text))
@@ -177,28 +209,36 @@ namespace UI
 
         private void btnGuardar_Click(object sender, EventArgs e)
         {
+            if (Modo == ModoForm.Alta && !CheckAllowed(P_CLIENTE_ALTA)) return;
+            if (Modo == ModoForm.Editar && !CheckAllowed(P_CLIENTE_EDITAR)) return;
+
             try
             {
                 if (!Validar()) return;
 
-                if (Modo == FormMode.Alta)
+                if (Modo == ModoForm.Alta)
                 {
                     var nuevo = new Cliente();
                     VolcarAEntidad(nuevo);
 
-                    var id = _service.Crear(nuevo); 
+                    var id = _service.Crear(nuevo);
                     if (id > 0)
                     {
-                        KryptonMessageBox.Show(this, "Cliente creado con éxito.");
+                        // Bitácora
+                        BLL.Bitacora.Info(_currentUserId,
+                            $"Cliente creado: {nuevo.Apellido}, {nuevo.Nombre} (Doc: {nuevo.DocumentoIdentidad})",
+                            "Clientes", "Crear", host: Environment.MachineName);
+
+                        KryptonMessageBox.Show(this, "Cliente creado con éxito.", "OK");
                         DialogResult = DialogResult.OK;
                         Close();
                     }
                     else
                     {
-                        KryptonMessageBox.Show(this, "No se pudo crear el cliente.");
+                        KryptonMessageBox.Show(this, "No se pudo crear el cliente.", "Aviso");
                     }
                 }
-                else if (Modo == FormMode.Edicion)
+                else if (Modo == ModoForm.Editar)
                 {
                     if (_cliente == null)
                     {
@@ -210,36 +250,32 @@ namespace UI
                     var ok = _service.Actualizar(_cliente);
                     if (ok)
                     {
-                        KryptonMessageBox.Show(this, "Cliente actualizado.");
+                        // Bitácora
+                        BLL.Bitacora.Info(_currentUserId,
+                            $"Cliente actualizado: {_cliente.Apellido}, {_cliente.Nombre} (Id: {_cliente.IdCliente})",
+                            "Clientes", "Actualizar", host: Environment.MachineName);
+
+                        KryptonMessageBox.Show(this, "Cliente actualizado.", "OK");
                         DialogResult = DialogResult.OK;
                         Close();
                     }
                     else
                     {
-                        KryptonMessageBox.Show(this, "No se pudo actualizar el cliente.");
+                        KryptonMessageBox.Show(this, "No se pudo actualizar el cliente.", "Aviso");
                     }
                 }
                 else
                 {
-                    // Consulta: no guarda
                     Close();
                 }
             }
             catch (Exception ex)
             {
-                KryptonMessageBox.Show(this, $"Error al guardar: {ex.Message}");
+                KryptonMessageBox.Show(this, $"Error al guardar: {ex.Message}", "Error",
+                    KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
             }
         }
 
-        private void btnVolver_Click(object sender, EventArgs e)
-        {
-            DialogResult = DialogResult.Cancel;
-            Close();
-        }
-
-        private void panel1_Paint(object sender, PaintEventArgs e)
-        {
-
-        }
+        private void panel1_Paint(object sender, PaintEventArgs e) { }
     }
 }

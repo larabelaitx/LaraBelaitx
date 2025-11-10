@@ -4,23 +4,33 @@ using System.Linq;
 using System.Windows.Forms;
 using Krypton.Toolkit;
 using BE;
-using DAL;   // DbMaintenance
+using DAL;
 using BLL;
-using BitacoraLog = BLL.Bitacora;
+using BLL.Contracts;
 
 namespace UI
 {
     public partial class BackupRestore : KryptonForm
     {
         private readonly Usuario _userSession;
+        private readonly IRolService _rolSvc;
+        private readonly int? _currentUserId;
+        private const string P_BACKUP_RESTORE = "BACKUP_RESTORE";
+
         private string _backupPath;
         private string[] _restorePath;
         private Translator _translator;
 
         public BackupRestore(Usuario user, string lang)
+            : this(user, lang, null, null) { }
+
+        public BackupRestore(Usuario user, string lang, IRolService rolSvc, int? currentUserId)
         {
             InitializeComponent();
             _userSession = user;
+            _rolSvc = rolSvc;
+            _currentUserId = currentUserId;
+
             LoadLanguage(lang);
 
             this.Load += BackupRestore_Load;
@@ -32,21 +42,32 @@ namespace UI
 
         private void BackupRestore_Load(object sender, EventArgs e)
         {
-            txtBxRestoreFolder.Text = string.Empty;
-            txtBxSaveFolder.Text = string.Empty;
+            if (_rolSvc != null && _currentUserId.HasValue &&
+                !_rolSvc.TienePatente(_currentUserId.Value, P_BACKUP_RESTORE))
+            {
+                KryptonMessageBox.Show(this,
+                    "No tenés permiso para acceder a esta funcionalidad.\n(BACKUP_RESTORE)",
+                    "Acceso denegado", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Warning);
+                Close();
+                return;
+            }
 
-            // Particiones 2..6 (DropDownList)
+            txtBxRestoreFolder.Text = "";
+            txtBxSaveFolder.Text = "";
+
             cbPart.DropDownStyle = ComboBoxStyle.DropDownList;
             cbPart.Items.Clear();
             cbPart.Items.AddRange(new object[] { "2", "3", "4", "5", "6" });
-            if (cbPart.Items.Count > 0) cbPart.SelectedIndex = 0; // valor por defecto = 2
+            cbPart.SelectedIndex = 0;
         }
 
         private void btnSelectSave_Click(object sender, EventArgs e)
         {
             using (var dlg = new FolderBrowserDialog())
             {
-                dlg.Description = _translator.Translate("lblSelectSave");
+                dlg.Description = _translator != null
+                    ? _translator.Translate("lblSelectSave")
+                    : "Elegí la carpeta para guardar los backups";
                 dlg.ShowNewFolderButton = true;
 
                 if (dlg.ShowDialog(this) == DialogResult.OK)
@@ -54,16 +75,13 @@ namespace UI
                     _backupPath = dlg.SelectedPath;
                     txtBxSaveFolder.Text = _backupPath;
 
-                    // Aviso si es una ruta problemática (OneDrive, Desktop)
-                    var lower = _backupPath.Replace('\\', '/').ToLowerInvariant();
+                    string lower = _backupPath.Replace('\\', '/').ToLowerInvariant();
                     if (lower.Contains("/onedrive") || lower.Contains("/desktop"))
                     {
                         KryptonMessageBox.Show(
-                            "⚠️ Recomendado: usá una carpeta local como C:\\SQLBackups y otorgá permisos al servicio SQL.\n" +
-                            "Las rutas de OneDrive o Escritorio suelen generar 'Access denied' al hacer backup.",
-                            "Sugerencia",
-                            KryptonMessageBoxButtons.OK,
-                            KryptonMessageBoxIcon.Information);
+                            "⚠️ Sugerencia: usá una carpeta local (p.ej., C:\\SQLBackups) y asegurá permisos al servicio SQL.\n" +
+                            "Rutas de OneDrive/Escritorio suelen causar 'Access denied' en backups.",
+                            "Sugerencia", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Information);
                     }
                 }
             }
@@ -73,21 +91,24 @@ namespace UI
         {
             if (string.IsNullOrWhiteSpace(_backupPath))
             {
-                KryptonMessageBox.Show(_translator.Translate("alertFolder"), "Alerta",
-                    KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Warning);
+                KryptonMessageBox.Show(
+                    _translator != null ? _translator.Translate("alertFolder") : "Seleccioná una carpeta.",
+                    "Alerta", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Warning);
                 return;
             }
 
-            try { if (!Directory.Exists(_backupPath)) Directory.CreateDirectory(_backupPath); }
+            try
+            {
+                if (!Directory.Exists(_backupPath)) Directory.CreateDirectory(_backupPath);
+            }
             catch (Exception ex)
             {
-                KryptonMessageBox.Show($"{_translator.Translate("infoBackupE")} {ex.Message}", "Error",
-                    KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
+                KryptonMessageBox.Show("Error al crear carpeta: " + ex.Message,
+                    "Error", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
                 return;
             }
 
-            // Validar particiones entre 2 y 6
-            int partitions = 2;
+            int partitions;
             if (!int.TryParse(cbPart.Text, out partitions)) partitions = 2;
             partitions = Math.Max(2, Math.Min(6, partitions));
 
@@ -96,17 +117,22 @@ namespace UI
             {
                 await System.Threading.Tasks.Task.Run(() => DbMaintenance.Backup(_backupPath, partitions));
 
-                KryptonMessageBox.Show(_translator.Translate("infoBackupOk"), "Información",
+                KryptonMessageBox.Show("Backup realizado correctamente.", "Información",
                     KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Information);
 
-                // Bitácora (tolerante)
-                try { BitacoraLog.Info(_userSession?.Id, $"Backup realizado por: {_userSession?.UserName} {DateTime.Now:yyyy-MM-dd HH:mm:ss}"); } catch { }
+                try
+                {
+                    BLL.Bitacora.Info(_userSession != null ? _userSession.Id : (int?)null,
+                        "Backup realizado por: " + (_userSession != null ? _userSession.UserName : "Desconocido"),
+                        "DB", "Backup");
+                }
+                catch { }
 
                 BackupRestore_Load(sender, e);
             }
             catch (Exception ex)
             {
-                KryptonMessageBox.Show($"{_translator.Translate("infoBackupE")} {ex.Message}", "Error",
+                KryptonMessageBox.Show("Error al realizar el backup: " + ex.Message, "Error",
                     KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
             }
             finally
@@ -119,13 +145,15 @@ namespace UI
         {
             using (var dlg = new OpenFileDialog())
             {
-                dlg.Title = _translator.Translate("selectBackupFileTitle");
-                dlg.Filter = "Backup (*.bak)|*.bak|All files (*.*)|*.*";
+                dlg.Title = "Seleccioná los archivos .bak";
+                dlg.Filter = "Backup (*.bak)|*.bak|Todos los archivos (*.*)|*.*";
                 dlg.Multiselect = true;
 
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
-                    _restorePath = dlg.FileNames?.Where(File.Exists).ToArray() ?? Array.Empty<string>();
+                    _restorePath = dlg.FileNames != null
+                        ? dlg.FileNames.Where(File.Exists).ToArray()
+                        : new string[0];
                     txtBxRestoreFolder.Text = string.Join("; ", _restorePath);
                 }
             }
@@ -135,17 +163,14 @@ namespace UI
         {
             if (_restorePath == null || _restorePath.Length == 0)
             {
-                KryptonMessageBox.Show(_translator.Translate("alertFolder"), "Alerta",
+                KryptonMessageBox.Show("Seleccioná archivo(s) de backup.", "Alerta",
                     KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Warning);
                 return;
             }
 
-            var ask = KryptonMessageBox.Show(
-                _translator.Translate("confirmRestore") ??
+            DialogResult ask = KryptonMessageBox.Show(
                 "Esto restaurará la base de datos con el/los backup(s) seleccionado(s).\n¿Deseás continuar?",
-                "Confirmar",
-                KryptonMessageBoxButtons.YesNo,
-                KryptonMessageBoxIcon.Warning);
+                "Confirmar", KryptonMessageBoxButtons.YesNo, KryptonMessageBoxIcon.Warning);
             if (ask != DialogResult.Yes) return;
 
             ToggleUi(false, true);
@@ -153,17 +178,22 @@ namespace UI
             {
                 await System.Threading.Tasks.Task.Run(() => DbMaintenance.Restore(_restorePath));
 
-                KryptonMessageBox.Show(_translator.Translate("infoRestoreOk"), "Información",
+                KryptonMessageBox.Show("Restore completado.", "Información",
                     KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Information);
 
-                // Bitácora (tolerante)
-                try { BitacoraLog.Warn(_userSession?.Id, $"Restore realizado por: {_userSession?.UserName} {DateTime.Now:yyyy-MM-dd HH:mm:ss}"); } catch { }
+                try
+                {
+                    BLL.Bitacora.Warn(_userSession != null ? _userSession.Id : (int?)null,
+                        "Restore realizado por: " + (_userSession != null ? _userSession.UserName : "Desconocido"),
+                        "DB", "Restore");
+                }
+                catch { }
 
                 BackupRestore_Load(sender, e);
             }
             catch (Exception ex)
             {
-                KryptonMessageBox.Show($"{_translator.Translate("infoRestoreE")}: {ex.Message}", "Error",
+                KryptonMessageBox.Show("Error al restaurar: " + ex.Message, "Error",
                     KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
             }
             finally
@@ -178,17 +208,20 @@ namespace UI
             translateControls(this.Controls);
         }
 
-        private void translateControls(Control.ControlCollection control)
+        private void translateControls(Control.ControlCollection controls)
         {
-            foreach (Control c in control)
+            if (_translator == null) return;
+
+            foreach (Control c in controls)
             {
                 if (c is KryptonButton || c is KryptonLabel)
                     c.Text = _translator.Translate(c.Name);
 
-                if (c is KryptonGroupBox)
+                var group = c as KryptonGroupBox;
+                if (group != null)
                 {
-                    c.Text = _translator.Translate(c.Name);
-                    if (c.Controls.Count > 0 && c.Controls[0] is Control inner)
+                    group.Text = _translator.Translate(group.Name);
+                    if (group.Controls.Count > 0 && group.Controls[0] is Control inner)
                     {
                         foreach (Control conIn in inner.Controls)
                         {

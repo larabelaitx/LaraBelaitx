@@ -3,217 +3,234 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows.Forms;
-using BLL.Services;   
+using Krypton.Toolkit;
 using BE;
 using BLL.Contracts;
+using BLL.Services;
+using UI.Common;      // ModoForm
+using UI.Seguridad;   // Perms
 
 namespace UI
 {
-    public partial class MainClientes : Form
+    public partial class MainClientes : KryptonForm
     {
-        private readonly IClienteService _clienteService;
-        private bool _gridConfigured;
+        private readonly IClienteService _svc;
+        private readonly IRolService _roles;
+        private readonly int? _currentUserId;
 
-        public MainClientes()
+        private BindingList<ClienteVM> _view = new BindingList<ClienteVM>();
+
+        private const string P_CLIENTE_LISTAR = Perms.Cliente_Listar;
+        private const string P_CLIENTE_ALTA = Perms.Cliente_Alta;
+        private const string P_CLIENTE_EDITAR = Perms.Cliente_Editar;
+
+        public MainClientes() : this(new ClienteService(), new RolService(), null) { }
+
+        public MainClientes(IClienteService svc, IRolService roles, int? currentUserId)
         {
             InitializeComponent();
-            _clienteService = new ClienteService();
+            StartPosition = FormStartPosition.CenterParent;
 
-            ConfigureGrid();
-            ApplySearch(); 
+            _svc = svc ?? throw new ArgumentNullException(nameof(svc));
+            _roles = roles ?? throw new ArgumentNullException(nameof(roles));
+            _currentUserId = currentUserId;
 
-            btnBuscar.Click += btnBuscar_Click;
-            btnLimpiar.Click += btnLimpiar_Click;
-            btnAgregar.Click += btnAgregar_Click;
-            btnVolver.Click += btnVolver_Click;
+            Load += MainClientes_Load;
 
-            txtNombre.KeyDown += Filtros_KeyDown_Enter_Buscar;
-            txtApellido.KeyDown += Filtros_KeyDown_Enter_Buscar;
-            txtDocumento.KeyDown += Filtros_KeyDown_Enter_Buscar;
+            TryWire("btnBuscar", (s, e) => Refrescar());
+            TryWire("btnLimpiar", (s, e) => { LimpiarFiltros(); Refrescar(); });
+            TryWire("btnAgregar", btnAgregar_Click);
+            TryWire("btnVolver", (s, e) => Close());
 
-            dgvClientes.CellContentClick += dgvClientes_CellContentClick;
-            dgvClientes.DataBindingComplete += dgvClientes_DataBindingComplete;
-        }
-
-        private void ConfigureGrid()
-        {
-            if (_gridConfigured) return;
-
-            dgvClientes.AutoGenerateColumns = false;
-            dgvClientes.MultiSelect = false;
-            dgvClientes.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvClientes.ReadOnly = true; // edición por formulario
-            dgvClientes.AllowUserToAddRows = false;
-            dgvClientes.AllowUserToDeleteRows = false;
-            dgvClientes.AllowUserToOrderColumns = true;
-            dgvClientes.RowHeadersVisible = false;
-            dgvClientes.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-            dgvClientes.Columns.Clear();
-
-            dgvClientes.Columns.Add(new DataGridViewTextBoxColumn
+            TryFind<DataGridView>("dgvClientes", g =>
             {
-                Name = "colNombre",
-                HeaderText = "Nombre",
-                DataPropertyName = "Nombre"
+                g.AutoGenerateColumns = false;
+                g.ReadOnly = true;
+                g.AllowUserToAddRows = g.AllowUserToDeleteRows = false;
+                g.MultiSelect = false;
+                g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+                g.RowHeadersVisible = false;
+
+                AddTextCol(g, "colId", "Id", "IdCliente", false, 60);
+                AddTextCol(g, "colApellido", "Apellido", "Apellido", true, 140);
+                AddTextCol(g, "colNombre", "Nombre", "Nombre", true, 140);
+                AddTextCol(g, "colDocumento", "Documento", "Documento", true, 120);
+                AddTextCol(g, "colCorreo", "Correo", "Correo", true, 200);
+
+                AddBtnCol(g, "colVer", "Ver", 60);
+                AddBtnCol(g, "colEditar", "Editar", 70);
+                AddBtnCol(g, "colCuentas", "Cuentas", 90);
+
+                g.CellContentClick += dgvClientes_CellContentClick;
             });
-            dgvClientes.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colApellido",
-                HeaderText = "Apellido",
-                DataPropertyName = "Apellido"
-            });
-            dgvClientes.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colCorreo",
-                HeaderText = "Correo",
-                DataPropertyName = "CorreoElectronico"
-            });
-            dgvClientes.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = "colDocumento",
-                HeaderText = "Documento",
-                DataPropertyName = "DocumentoIdentidad" 
-            });
-
-            // Botón Editar
-            dgvClientes.Columns.Add(new DataGridViewButtonColumn
-            {
-                Name = "colEditar",
-                HeaderText = "Editar",
-                Text = "Editar",
-                UseColumnTextForButtonValue = true,
-                AutoSizeMode = DataGridViewAutoSizeColumnMode.DisplayedCells
-            });
-
-            // Botón Ver
-            dgvClientes.Columns.Add(new DataGridViewButtonColumn
-            {
-                Name = "colVer",
-                HeaderText = "Ver",
-                Text = "Ver",
-                UseColumnTextForButtonValue = true,
-                AutoSizeMode = DataGridViewAutoSizeColumnMode.DisplayedCells
-            });
-
-            _gridConfigured = true;
-        }
-
-        private void btnBuscar_Click(object sender, EventArgs e) => ApplySearch();
-
-        /// <summary>
-        /// Si no hay filtros, trae todo. Si hay alguno, filtra.
-        /// </summary>
-        /// <summary>
-        /// Si no hay filtros, trae todo. Si hay alguno, filtra.
-        /// Ordena por Apellido, luego Nombre antes de bindear.
-        /// </summary>
-        private void ApplySearch()
-        {
-            string nombre = (txtNombre.Text ?? "").Trim();
-            string apellido = (txtApellido.Text ?? "").Trim();
-            string documento = (txtDocumento.Text ?? "").Trim();
-
-            string nomApe = string.Join(" ", new[] { nombre, apellido }
-                                        .Where(s => !string.IsNullOrWhiteSpace(s))).Trim();
-            List<Cliente> datos = (!string.IsNullOrEmpty(nomApe) || !string.IsNullOrEmpty(documento))
-                ? (_clienteService.Buscar(nomApe: nomApe, doc: documento) ?? new List<Cliente>())
-                : (_clienteService.GetAll() ?? new List<Cliente>());
-            var ordenados = datos
-                .OrderBy(c => c.Apellido ?? string.Empty)
-                .ThenBy(c => c.Nombre ?? string.Empty)
-                .ToList();
-            dgvClientes.DataSource = null;
-            dgvClientes.DataSource = new BindingList<Cliente>(ordenados);
-        }
-
-        private void btnLimpiar_Click(object sender, EventArgs e)
-        {
-            ClearFilters();
-            ApplySearch();
-        }
-
-        private void ClearFilters()
-        {
-            txtNombre.Clear();
-            txtApellido.Clear();
-            txtDocumento.Clear();
-            txtNombre.Focus();
-        }
-
-        private void btnAgregar_Click(object sender, EventArgs e)
-        {
-            using (var frm = new AltaCliente(_clienteService, AltaCliente.FormMode.Alta))
-            {
-                if (frm.ShowDialog(this) == DialogResult.OK)
-                    ApplySearch();
-            }
-        }
-        private void btnVolver_Click(object sender, EventArgs e)
-        {
-            this.Close();
-        }
-        private void dgvClientes_CellContentClick(object sender, DataGridViewCellEventArgs e)
-        {
-            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
-
-            string col = dgvClientes.Columns[e.ColumnIndex].Name;
-            var cliente = dgvClientes.Rows[e.RowIndex].DataBoundItem as Cliente;
-            if (cliente == null) return;
-
-            if (col == "colVer")
-            {
-                using (var frm = new AltaCliente(
-                    _clienteService,
-                    AltaCliente.FormMode.Consulta,   
-                    idCliente: cliente.IdCliente,            
-                    cliente: cliente))
-                {
-                    frm.ShowDialog(this);
-                }
-            }
-            else if (col == "colEditar")
-            {
-                using (var frm = new AltaCliente(
-                    _clienteService,
-                    AltaCliente.FormMode.Edicion,    
-                    idCliente: cliente.IdCliente,
-                    cliente: cliente))
-                {
-                    if (frm.ShowDialog(this) == DialogResult.OK)
-                        ApplySearch();
-                }
-            }
-        }
-
-        private void dgvClientes_DataBindingComplete(object sender, DataGridViewBindingCompleteEventArgs e)
-        {
-            dgvClientes.ClearSelection();
-            foreach (DataGridViewColumn c in dgvClientes.Columns)
-            {
-                c.DefaultCellStyle.Alignment =
-                    c is DataGridViewButtonColumn ? DataGridViewContentAlignment.MiddleCenter
-                                                 : DataGridViewContentAlignment.MiddleLeft;
-            }
-        }
-
-        private void Filtros_KeyDown_Enter_Buscar(object sender, KeyEventArgs e)
-        {
-            if (e.KeyCode == Keys.Enter)
-            {
-                e.Handled = true;
-                e.SuppressKeyPress = true;
-                ApplySearch();
-            }
         }
 
         private void MainClientes_Load(object sender, EventArgs e)
         {
-
+            if (!Allowed(P_CLIENTE_LISTAR)) { Close(); return; }
+            Refrescar();
         }
 
-        private void dgvClientes_CellContentClick_1(object sender, DataGridViewCellEventArgs e)
-        {
+        private bool Allowed(string patente)
+            => _currentUserId.HasValue && _currentUserId.Value > 0 && _roles.TienePatente(_currentUserId.Value, patente);
 
+        private void Refrescar()
+        {
+            try
+            {
+                string fApe = GetText("txtApellido");
+                string fNom = GetText("txtNombre");
+                string fDoc = GetText("txtDocumento");
+
+                var data = (_svc.GetAll() ?? new List<Cliente>())
+                    .Select(c => new ClienteVM
+                    {
+                        IdCliente = c.IdCliente,
+                        Apellido = c.Apellido ?? "",
+                        Nombre = c.Nombre ?? "",
+                        Documento = c.DocumentoIdentidad ?? "",
+                        Correo = c.CorreoElectronico ?? ""
+                    });
+
+                if (!string.IsNullOrWhiteSpace(fApe))
+                    data = data.Where(x => (x.Apellido ?? "").IndexOf(fApe, StringComparison.OrdinalIgnoreCase) >= 0);
+                if (!string.IsNullOrWhiteSpace(fNom))
+                    data = data.Where(x => (x.Nombre ?? "").IndexOf(fNom, StringComparison.OrdinalIgnoreCase) >= 0);
+                if (!string.IsNullOrWhiteSpace(fDoc))
+                    data = data.Where(x => (x.Documento ?? "").IndexOf(fDoc, StringComparison.OrdinalIgnoreCase) >= 0);
+
+                var lista = data.OrderBy(x => x.Apellido).ThenBy(x => x.Nombre).ToList();
+                _view = new BindingList<ClienteVM>(lista);
+
+                TryFind<DataGridView>("dgvClientes", g => g.DataSource = _view);
+                SetText("lblTotal", "Total: " + lista.Count);
+            }
+            catch
+            {
+                // silencioso
+            }
+        }
+
+        private void LimpiarFiltros()
+        {
+            SetText("txtApellido", "");
+            SetText("txtNombre", "");
+            SetText("txtDocumento", "");
+        }
+
+        private void btnAgregar_Click(object sender, EventArgs e)
+        {
+            if (!Allowed(P_CLIENTE_ALTA)) return;
+
+            try
+            {
+                using (var frm = new AltaCliente(_svc, _roles, ModoForm.Alta, null, null, _currentUserId))
+                {
+                    if (frm.ShowDialog(this) == DialogResult.OK)
+                        Refrescar();
+                }
+            }
+            catch { /* silencioso */ }
+        }
+
+        private void dgvClientes_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            var grid = (DataGridView)sender;
+            var col = grid.Columns[e.ColumnIndex].Name;
+            var vm = grid.Rows[e.RowIndex].DataBoundItem as ClienteVM;
+            if (vm == null) return;
+
+            if (col == "colVer")
+            {
+                using (var frm = new AltaCliente(_svc, _roles, ModoForm.Ver, vm.IdCliente, null, _currentUserId))
+                    frm.ShowDialog(this);
+                return;
+            }
+
+            if (col == "colEditar")
+            {
+                if (!Allowed(P_CLIENTE_EDITAR)) return;
+
+                using (var frm = new AltaCliente(_svc, _roles, ModoForm.Editar, vm.IdCliente, null, _currentUserId))
+                {
+                    if (frm.ShowDialog(this) == DialogResult.OK)
+                        Refrescar();
+                }
+                return;
+            }
+
+            if (col == "colCuentas")
+            {
+                try
+                {
+                    using (var frm = new MainCuentas(vm.IdCliente, _roles, _currentUserId))
+                        frm.ShowDialog(this);
+                }
+                catch { /* silencioso */ }
+            }
+        }
+
+        // ==== Helpers UI ====
+        private void TryWire(string name, EventHandler handler)
+        {
+            var c = Controls.Find(name, true).FirstOrDefault();
+            if (c != null) c.Click += handler;
+        }
+        private void TryFind<T>(string name, Action<T> act) where T : Control
+        {
+            var c = Controls.Find(name, true).FirstOrDefault() as T;
+            if (c != null) act(c);
+        }
+        private void AddTextCol(DataGridView g, string name, string header, string prop, bool visible, int width)
+        {
+            if (g.Columns.Contains(name)) return;
+            g.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = name,
+                HeaderText = header,
+                DataPropertyName = prop,
+                Visible = visible,
+                Width = width,
+                MinimumWidth = width,
+                AutoSizeMode = visible ? DataGridViewAutoSizeColumnMode.DisplayedCells : DataGridViewAutoSizeColumnMode.None
+            });
+        }
+        private void AddBtnCol(DataGridView g, string name, string header, int width)
+        {
+            if (g.Columns.Contains(name)) return;
+            var col = new DataGridViewButtonColumn
+            {
+                Name = name,
+                HeaderText = header,
+                Text = header,
+                UseColumnTextForButtonValue = true,
+                Width = width,
+                MinimumWidth = width
+            };
+            col.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            g.Columns.Add(col);
+        }
+        private string GetText(string name)
+        {
+            var c = Controls.Find(name, true).FirstOrDefault() as TextBox;
+            return c != null ? (c.Text ?? "").Trim() : "";
+        }
+        private void SetText(string name, string value)
+        {
+            var c = Controls.Find(name, true).FirstOrDefault() as Control;
+            if (c is TextBox) ((TextBox)c).Text = value;
+            else if (c is Label) ((Label)c).Text = value;
+        }
+
+        // VM
+        private class ClienteVM
+        {
+            public int IdCliente { get; set; }
+            public string Apellido { get; set; }
+            public string Nombre { get; set; }
+            public string Documento { get; set; }
+            public string Correo { get; set; }
         }
     }
 }

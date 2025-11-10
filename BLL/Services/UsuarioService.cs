@@ -12,6 +12,7 @@ namespace BLL.Services
     public class UsuarioService : IUsuarioService
     {
         private readonly UsuarioDao _dao = UsuarioDao.GetInstance();
+        private readonly FamiliaDao _famDao = FamiliaDao.GetInstance();
 
         public int MaxTries { get; set; } = 3;
 
@@ -20,14 +21,27 @@ namespace BLL.Services
         public List<Usuario> GetAll() => _dao.GetAllActive();
         public List<Usuario> GetAllActive() => _dao.GetAllActive();
 
-        public bool CrearConPassword(Usuario u, string plainPassword)
+        // ===========================
+        //  ALTA: devuelve el Id nuevo
+        // ===========================
+        public int CrearConPassword(Usuario u, string plainPassword)
         {
             (byte[] hash, byte[] salt, int iters) = Svc.PasswordService.Hash(plainPassword);
             u.PasswordHash = hash;
             u.PasswordSalt = salt;
             u.PasswordIterations = iters;
             u.DebeCambiarContraseña = true;
-            return Crear(u);
+            u.Tries = 0;
+            if (u.EstadoUsuarioId == 0) u.EstadoUsuarioId = EstadosUsuario.Habilitado;
+
+            var dvh = new DVH { dvh = Svc.DV.GetDV(DvhString(u)) };
+            int newId = _dao.AddReturnId(u, dvh);
+
+            BLL.Bitacora.Info(newId,
+                $"Alta de usuario '{u.UserName}'",
+                "Usuarios", "Usuario_Alta", host: Environment.MachineName);
+
+            return newId;
         }
 
         public bool Crear(Usuario u)
@@ -58,16 +72,47 @@ namespace BLL.Services
             return ok;
         }
 
+        // Alias para compatibilidad con la UI
+        public bool Update(Usuario u) => Actualizar(u);
+
         public bool BajaLogica(Usuario u)
         {
+            u.EstadoUsuarioId = EstadosUsuario.Baja;
             var dvh = new DVH { dvh = Svc.DV.GetDV(DvhString(u)) };
-            var ok = _dao.Delete(u, dvh);
+            var ok = _dao.Update(u, dvh);
             if (ok)
                 BLL.Bitacora.Warn(u.Id, $"Baja lógica de usuario '{u.UserName}'",
                     "Usuarios", "Usuario_Baja", host: Environment.MachineName);
             return ok;
         }
 
+        // ===============================
+        // NUEVO: Cambiar estado (Baja / Reactivar)
+        // ===============================
+        public bool CambiarEstado(int idUsuario, int nuevoEstado)
+        {
+            var u = _dao.GetById(idUsuario);
+            if (u == null) throw new Exception("Usuario inexistente.");
+
+            u.EstadoUsuarioId = nuevoEstado;
+            var dvh = new DVH { dvh = Svc.DV.GetDV(DvhString(u)) };
+            var ok = _dao.CambiarEstado(idUsuario, nuevoEstado, dvh);
+
+            if (ok)
+            {
+                string accion = nuevoEstado == EstadosUsuario.Habilitado ? "Reactivación" : "Baja";
+                BLL.Bitacora.Info(idUsuario, $"{accion} de usuario '{u.UserName}'",
+                    "Usuarios", $"Usuario_{accion}", host: Environment.MachineName);
+            }
+            return ok;
+        }
+
+        public bool Reactivar(int idUsuario) => CambiarEstado(idUsuario, EstadosUsuario.Habilitado);
+        public bool DarDeBaja(int idUsuario) => CambiarEstado(idUsuario, EstadosUsuario.Baja);
+
+        // =====================================
+        // LOGIN / BLOQUEO / PASSWORD / CONTROL
+        // =====================================
         public bool Login(string userName, string plainPassword, out Usuario usuario)
         {
             usuario = _dao.GetByUserName(userName);
@@ -148,27 +193,48 @@ namespace BLL.Services
                 "Usuarios", "Usuario_PasswordActualizar", host: Environment.MachineName);
         }
 
+        // ======================
+        // VALIDACIONES Y BAJAS
+        // ======================
         public Usuario ObtenerPorId(int id) => GetById(id);
         public bool ExisteUsername(string username) => _dao.GetByUserName(username) != null;
-
         public bool ExisteEmail(string email)
             => !string.IsNullOrWhiteSpace(email) && _dao.ExisteEmail(email.Trim(), excluirId: null);
-
         public bool ExisteDocumento(string documento)
             => !string.IsNullOrWhiteSpace(documento) && _dao.ExisteDocumento(documento.Trim(), excluirId: null);
 
         private static string DvhString(Usuario u)
             => $"{u.Id}|{u.UserName}|{u.Email}|{u.EstadoUsuarioId}|{u.Tries}";
 
-        // ===== Validación reutilizable =====
+        private int CountHabilitadosBLL() => _dao.GetAllActive().Count;
+        private int CountHabilitadosBLL(IEnumerable<int> ids)
+        {
+            var set = new HashSet<int>((ids ?? Enumerable.Empty<int>()).Distinct());
+            return _dao.GetAllActive().Count(u => set.Contains(u.Id));
+        }
+
+        private int CountAdminsActivosBLL() =>
+            _dao.GetAllActive().Count(u =>
+                (_famDao.GetFamiliasUsuario(u.Id) ?? new List<Familia>())
+                .Any(f => string.Equals(f.Name, "Administrador", StringComparison.OrdinalIgnoreCase)));
+
+        private int CountAdminsActivosBLL(IEnumerable<int> ids)
+        {
+            var set = new HashSet<int>((ids ?? Enumerable.Empty<int>()).Distinct());
+            return _dao.GetAllActive()
+                       .Where(u => set.Contains(u.Id))
+                       .Count(u => (_famDao.GetFamiliasUsuario(u.Id) ?? new List<Familia>())
+                           .Any(f => string.Equals(f.Name, "Administrador", StringComparison.OrdinalIgnoreCase)));
+        }
+
         public bool PuedeEliminarUsuarios(IEnumerable<int> idsAEliminar, out string motivo)
         {
             motivo = null;
             var lista = (idsAEliminar ?? new List<int>()).Distinct().ToList();
             if (lista.Count == 0) { motivo = "No se seleccionaron usuarios."; return false; }
 
-            var totalHabilitados = _dao.CountHabilitados();
-            var habAEliminar = _dao.CountHabilitados(lista);
+            var totalHabilitados = CountHabilitadosBLL();
+            var habAEliminar = CountHabilitadosBLL(lista);
 
             if (totalHabilitados - habAEliminar < 1)
             {
@@ -189,17 +255,16 @@ namespace BLL.Services
                 return false;
             }
 
-            // Validaciones previas
-            int totalHabilitados = _dao.CountHabilitados();
-            int habAEliminar = _dao.CountHabilitados(lista);
+            int totalHabilitados = CountHabilitadosBLL();
+            int habAEliminar = CountHabilitadosBLL(lista);
             if (totalHabilitados - habAEliminar < 1)
             {
                 motivo = "No se puede eliminar: quedaría el sistema sin usuarios habilitados.";
                 return false;
             }
 
-            int adminsActivos = _dao.CountAdminsActivos();
-            int adminsAEliminar = _dao.CountAdminsActivos(lista);
+            int adminsActivos = CountAdminsActivosBLL();
+            int adminsAEliminar = CountAdminsActivosBLL(lista);
             if (adminsActivos - adminsAEliminar < 1)
             {
                 motivo = "Debe quedar al menos un Administrador activo.";
@@ -213,27 +278,29 @@ namespace BLL.Services
                 {
                     foreach (int id in lista)
                     {
-                        _dao.RemoveFamiliasDeUsuario(id);
-                        _dao.RemovePatentesDeUsuario(id);
-                        _dao.BajaLogica(id);
+                        _dao.SetUsuarioFamilias(id, new List<int>());
+                        _dao.SetPatentesDeUsuario(id, new List<int>());
+
+                        var u = _dao.GetById(id);
+                        if (u != null)
+                        {
+                            u.EstadoUsuarioId = EstadosUsuario.Baja;
+                            var dvh = new DVH { dvh = Svc.DV.GetDV(DvhString(u)) };
+                            _dao.Update(u, dvh);
+                        }
 
                         BLL.Bitacora.Warn(id, $"Baja lógica de usuario Id={id}",
                             "Usuarios", "Usuario_Baja", host: Environment.MachineName);
                     }
 
-                    // Recalcular DVV (tolerante)
-                    try
-                    {
-                        var dvvU = DAL.DVVDao.GetInstance().CalculateDVV("Usuario");
-                        DAL.DVVDao.GetInstance().AddUpdateDVV(new BE.DVV { tabla = "Usuario", dvv = dvvU });
+                    var dvvU = DAL.DVVDao.GetInstance().CalculateDVV("Usuario");
+                    DAL.DVVDao.GetInstance().AddUpdateDVV(new BE.DVV { tabla = "Usuario", dvv = dvvU });
 
-                        var dvvUF = DAL.DVVDao.GetInstance().CalculateDVV("UsuarioFamilia");
-                        DAL.DVVDao.GetInstance().AddUpdateDVV(new BE.DVV { tabla = "UsuarioFamilia", dvv = dvvUF });
+                    var dvvUF = DAL.DVVDao.GetInstance().CalculateDVV("UsuarioFamilia");
+                    DAL.DVVDao.GetInstance().AddUpdateDVV(new BE.DVV { tabla = "UsuarioFamilia", dvv = dvvUF });
 
-                        var dvvUP = DAL.DVVDao.GetInstance().CalculateDVV("UsuarioPatente");
-                        DAL.DVVDao.GetInstance().AddUpdateDVV(new BE.DVV { tabla = "UsuarioPatente", dvv = dvvUP });
-                    }
-                    catch { /* tolerante */ }
+                    var dvvUP = DAL.DVVDao.GetInstance().CalculateDVV("UsuarioPatente");
+                    DAL.DVVDao.GetInstance().AddUpdateDVV(new BE.DVV { tabla = "UsuarioPatente", dvv = dvvUP });
 
                     scope.Complete();
                     return true;
@@ -247,5 +314,55 @@ namespace BLL.Services
                 }
             }
         }
+
+        public bool BajaLogicaSegura(int idUsuario, out string mensaje)
+        {
+            var ok = _dao.BajaLogicaSegura(idUsuario, out mensaje);
+            if (ok)
+            {
+                BLL.Bitacora.Warn(idUsuario, $"Baja lógica de usuario Id={idUsuario}",
+                    "Usuarios", "Usuario_Baja", host: Environment.MachineName);
+            }
+            else
+            {
+                BLL.Bitacora.Warn(idUsuario, $"Intento de baja fallido: {mensaje}",
+                    "Usuarios", "Usuario_Baja", host: Environment.MachineName);
+            }
+            return ok;
+        }
+
+        public bool Bloquear(int idUsuario)
+        {
+            var u = _dao.GetById(idUsuario);
+            if (u == null) throw new Exception("Usuario inexistente.");
+
+            u.EstadoUsuarioId = EstadosUsuario.Bloqueado;
+            var dvh = new DVH { dvh = Svc.DV.GetDV($"{u.Id}|{u.UserName}|{u.EstadoUsuarioId}") };
+            var ok = _dao.Update(u, dvh);
+
+            if (ok)
+                BLL.Bitacora.Warn(u.Id, $"Usuario '{u.UserName}' bloqueado manualmente.",
+                    "Usuarios", "Usuario_Bloquear", host: Environment.MachineName);
+
+            return ok;
+        }
+
+        public bool Desbloquear(int idUsuario)
+        {
+            var u = _dao.GetById(idUsuario);
+            if (u == null) throw new Exception("Usuario inexistente.");
+
+            u.EstadoUsuarioId = EstadosUsuario.Habilitado;
+            u.Tries = 0;
+            var dvh = new DVH { dvh = Svc.DV.GetDV($"{u.Id}|{u.UserName}|{u.EstadoUsuarioId}") };
+            var ok = _dao.Update(u, dvh);
+
+            if (ok)
+                BLL.Bitacora.Info(u.Id, $"Usuario '{u.UserName}' desbloqueado.",
+                    "Usuarios", "Usuario_Desbloquear", host: Environment.MachineName);
+
+            return ok;
+        }
+
     }
 }

@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ConfigStringConn));
             this.panel1 = new System.Windows.Forms.Panel();
             this.label6 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
@@ -168,14 +169,13 @@
             this.btnGuardar.TabIndex = 50;
             this.btnGuardar.Values.DropDownArrowColor = System.Drawing.Color.Empty;
             this.btnGuardar.Values.Text = "Guardar";
-
             // 
             // ConfigStringConn
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.White;
-            this.ClientSize = new System.Drawing.Size(602, 432);
+            this.ClientSize = new System.Drawing.Size(604, 425);
             this.Controls.Add(this.btnGuardar);
             this.Controls.Add(this.btnProbar);
             this.Controls.Add(this.chkWindows);
@@ -188,6 +188,7 @@
             this.Controls.Add(this.label1);
             this.Controls.Add(this.label3);
             this.Controls.Add(this.panel1);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "ConfigStringConn";
             this.Load += new System.EventHandler(this.ConfigStringConn_Load);
             this.panel1.ResumeLayout(false);

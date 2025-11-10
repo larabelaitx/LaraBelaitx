@@ -1,14 +1,9 @@
 ﻿using System;
-using System.Linq;
 using System.Windows.Forms;
 using Krypton.Toolkit;
 using BLL.Services;
-using BE;
 using Services;
-using System.IO;
-using System.Text;
-using UI; 
-
+using UI.Infrastructure;
 
 namespace UI
 {
@@ -19,141 +14,62 @@ namespace UI
         public Login()
         {
             InitializeComponent();
-            this.KeyPreview = true;
+            KeyPreview = true;
+            AcceptButton = btnIngresar;
+
+            // Ayuda F1 (no invasiva)
             UI.F1Help.Wire(this, "seguridad.login", () => "es-AR");
-            this.AcceptButton = btnIngresar;
         }
 
         private void Login_Load(object sender, EventArgs e)
         {
+            // Limpio contexto al abrir login
+            SecurityContext.Clear();
+
             txtUsuario.Clear();
             txtContraseña.Clear();
-
-            try
-            {
-                var svc = new UsuarioService();
-                var u = svc.GetByUserName("admin");
-
-                if (u == null)
-                {
-                    var nuevo = new BE.Usuario
-                    {
-                        UserName = "admin",
-                        Name = "Administrador",
-                        LastName = "Sistema",
-                        Email = null,
-                        EstadoUsuarioId = BE.EstadosUsuario.Habilitado,
-                        IdiomaId = 1,
-                        Tries = 0
-                    };
-
-                    // crea con "1234"
-                    svc.CrearConPassword(nuevo, "1234");
-
-                    // si NO querés forzar cambio al admin inicial:
-                    var creado = svc.GetByUserName("admin");
-                    if (creado != null)
-                    {
-                        creado.DebeCambiarContraseña = false; // poné true si querés forzar
-                        svc.Actualizar(creado);
-                    }
-
-                    MessageBox.Show("✅ Usuario 'admin' creado con contraseña '1234'.",
-                        "Semilla creada", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-                else
-                {
-                    MessageBox.Show("El usuario 'admin' ya existe.",
-                        "Semilla", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-            }
-            catch (Exception ex)
-            {
-                // Log de error de UI (no duplica nada de BLL)
-                BLL.Bitacora.Error(null, $"Error al crear usuario admin: {ex.Message}",
-                    "UI", "Login_Load", host: Environment.MachineName);
-
-                MessageBox.Show("Error al crear usuario admin:\n" + ex.Message,
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            txtUsuario.Focus();
         }
 
         private void btnIngresar_Click(object sender, EventArgs e)
         {
-            string usuario = txtUsuario.Text.Trim();
+            string usuario = (txtUsuario.Text ?? "").Trim();
             string contraseña = txtContraseña.Text;
-            string host = Environment.MachineName;
 
             if (string.IsNullOrWhiteSpace(usuario) || string.IsNullOrWhiteSpace(contraseña))
             {
-                MessageBox.Show("Ingresá usuario y contraseña.", "Faltan datos",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                if (string.IsNullOrWhiteSpace(contraseña)) txtContraseña.Focus(); else txtUsuario.Focus();
+                // Sin mensajes: simplemente no hace nada si faltan datos
                 return;
             }
 
             btnIngresar.Enabled = false;
-
             try
             {
                 var ok = _usuarios.Login(usuario, contraseña, out BE.Usuario u);
-
                 if (!ok)
                 {
-                    // ⚠️ Sólo UI feedback (el Service ya loguea el fail/bloqueo)
-                    if (u != null && u.EstadoUsuarioId == EstadosUsuario.Bloqueado)
-                    {
-                        MessageBox.Show(
-                            "Tu usuario fue bloqueado por intentos fallidos.\nContactá a un administrador para desbloquearlo.",
-                            "Usuario bloqueado",
-                            MessageBoxButtons.OK, MessageBoxIcon.Stop);
-                    }
-                    else
-                    {
-                        int usados = Math.Max(0, u?.Tries ?? 0);
-                        int restantes = Math.Max(0, _usuarios.MaxTries - usados);
-
-                        MessageBox.Show(
-                            $"Usuario o contraseña incorrectos.\nIntentos restantes: {restantes}",
-                            "Error de acceso",
-                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
-
+                    // Silencioso: limpia y vuelve a pedir
                     txtContraseña.Clear();
                     txtContraseña.Focus();
                     return;
                 }
 
-                // ---- Cambio de contraseña obligatorio ----
+                // Cambio de contraseña obligatorio (solo diálogo de cambio, sin mensajes extra)
                 if (u.DebeCambiarContraseña)
                 {
                     using (var dlg = new ChangePasswordDialog())
                     {
-                        if (dlg.ShowDialog(this) != DialogResult.OK)
-                        {
-                            return; // no continúa a menú
-                        }
+                        if (dlg.ShowDialog(this) != DialogResult.OK) return;
 
-                        var hp = Services.PasswordService.Hash(dlg.NewPassword);
+                        var hp = PasswordService.Hash(dlg.NewPassword);
                         u.PasswordHash = hp.Hash;
                         u.PasswordSalt = hp.Salt;
                         u.PasswordIterations = hp.Iterations;
                         u.DebeCambiarContraseña = false;
                         u.Tries = 0;
-
                         _usuarios.Actualizar(u);
 
-                        // Log informativo desde UI (no duplica ningún evento de negocio)
-                        BLL.Bitacora.Info(u?.Id, "Cambio de contraseña OK",
-                            "Seguridad", "PasswordChange", host: host);
-
-                        // Forzamos re-login con nueva clave
-                        KryptonMessageBox.Show(
-                            "Contraseña actualizada correctamente.\nVolvé a iniciar sesión con tu nueva contraseña.",
-                            "Cambio de contraseña",
-                            KryptonMessageBoxButtons.OK,
-                            KryptonMessageBoxIcon.Information);
-
+                        // Forzamos re-login
                         txtUsuario.Text = u.UserName;
                         txtContraseña.Clear();
                         txtContraseña.Focus();
@@ -161,33 +77,25 @@ namespace UI
                     }
                 }
 
-                // ---- Login OK (sin cambio pendiente) ----
-                // ✅ No logueamos acá: el Service ya grabó el LoginOK y evita duplicados.
-
-                MessageBox.Show($"¡Bienvenido {u?.NombreCompleto ?? usuario}!",
-                    "Acceso", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                // Seteo de contexto y navegación
+                SecurityContext.CurrentUser = u;
 
                 var menu = new Menu(u);
-                this.Hide();
-
+                Hide();
                 menu.FormClosed += (s2, e2) =>
                 {
+                    SecurityContext.Clear();
                     txtContraseña.Clear();
-                    this.WindowState = FormWindowState.Normal;
-                    this.Activate();
-                    this.Show(); // volvemos a mostrar el Login al cerrar el menú
+                    WindowState = FormWindowState.Normal;
+                    Activate();
+                    Show();
                 };
-
                 menu.Show();
             }
-            catch (Exception ex)
+            catch
             {
-                // Log de error UI (no duplica logs de negocio)
-                BLL.Bitacora.Error(null, $"Excepción en Login: {ex.Message}",
-                    "Seguridad", "Login", host: host);
-
-                MessageBox.Show("Error al intentar iniciar sesión:\n" + ex.Message,
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                // Silencioso: no mostrar errores en UI; sólo limpiar
+                txtContraseña.Clear();
             }
             finally
             {
@@ -197,96 +105,15 @@ namespace UI
 
         private void btnOlvideContraseña_Click(object sender, EventArgs e)
         {
-            try
-            {
-                string userOrMail = txtUsuario.Text.Trim();
-                if (string.IsNullOrWhiteSpace(userOrMail))
-                {
-                    MessageBox.Show(
-                        "Ingresá usuario o email en el campo Usuario para recuperar.",
-                        "Recuperar",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information);
-                    txtUsuario.Focus();
-                    return;
-                }
+            // Dejar tu implementación o silenciarla si preferís
+        }
 
-                var svc = new UsuarioService();
-
-                // 1) Buscar por username; si no, por email
-                Usuario u = svc.GetByUserName(userOrMail);
-                if (u == null)
-                {
-                    var todos = svc.GetAll();
-                    u = todos.FirstOrDefault(x =>
-                        !string.IsNullOrWhiteSpace(x.Email) &&
-                        string.Equals(x.Email.Trim(), userOrMail, StringComparison.OrdinalIgnoreCase));
-                }
-
-                if (u == null)
-                {
-                    MessageBox.Show(
-                        "No se encontró el usuario.",
-                        "Recuperar",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning);
-                    return;
-                }
-
-                // 2) Generar password temporal y forzar cambio
-                string temp = Crypto.GenPassword();
-                var hp = PasswordService.Hash(temp);
-                u.PasswordHash = hp.Hash;
-                u.PasswordSalt = hp.Salt;
-                u.PasswordIterations = hp.Iterations;
-                u.DebeCambiarContraseña = true;
-                u.Tries = 0;
-                u.EstadoUsuarioId = EstadosUsuario.Habilitado;
-
-                var ok = svc.Actualizar(u);
-                if (!ok) throw new Exception("No se pudo actualizar el usuario.");
-
-                // 3) Descargar TXT con los datos
-                using (var sfd = new SaveFileDialog
-                {
-                    Filter = "Archivo de texto|*.txt",
-                    FileName = $"Recuperacion_{u.UserName}_{DateTime.Now:yyyyMMdd_HHmm}.txt"
-                })
-                {
-                    if (sfd.ShowDialog(this) == DialogResult.OK)
-                    {
-                        var sb = new StringBuilder();
-                        sb.AppendLine("ITX – Recuperación de contraseña");
-                        sb.AppendLine("================================");
-                        sb.AppendLine($"Usuario:   {u.UserName}");
-                        if (!string.IsNullOrWhiteSpace(u.Email)) sb.AppendLine($"Email:     {u.Email}");
-                        if (!string.IsNullOrWhiteSpace(u.Documento)) sb.AppendLine($"Documento: {u.Documento}");
-                        sb.AppendLine();
-                        sb.AppendLine("Contraseña temporal (válida hasta el próximo inicio):");
-                        sb.AppendLine($"    {temp}");
-                        sb.AppendLine();
-                        sb.AppendLine("Al iniciar sesión se te pedirá cambiarla por una nueva.");
-                        File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
-                    }
-                }
-
-                MessageBox.Show(
-                    "Se generó una contraseña temporal.\nGuardá el archivo TXT con la información.",
-                    "Recuperación",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                BLL.Bitacora.Error(null, $"Error en recuperación: {ex.Message}",
-                    "UI", "OlvideContrasena", host: Environment.MachineName);
-
-                MessageBox.Show(
-                    "Error en la recuperación: " + ex.Message,
-                    "Error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
-            }
+        private void cboIdioma_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            var cb = sender as KryptonComboBox;
+            var lang = (cb?.Text ?? "").Trim().StartsWith("EN", StringComparison.OrdinalIgnoreCase) ? "en" : "es";
+            LanguageService.SetUICulture(lang);
+            ResourceApplier.ApplyTo(this);
         }
     }
 }

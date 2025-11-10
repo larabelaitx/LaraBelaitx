@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Bitacora));
             this.panel1 = new System.Windows.Forms.Panel();
             this.label2 = new System.Windows.Forms.Label();
             this.btnVolver = new System.Windows.Forms.Button();
@@ -121,7 +122,6 @@
             this.btnImprimir.TabIndex = 27;
             this.btnImprimir.Values.DropDownArrowColor = System.Drawing.Color.Empty;
             this.btnImprimir.Values.Text = "Imprimir";
-            this.btnImprimir.Click += new System.EventHandler(this.btnImprimir_Click_1);
             // 
             // cboOrden
             // 
@@ -219,13 +219,13 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1102, 555);
+            this.ClientSize = new System.Drawing.Size(1104, 548);
             this.Controls.Add(this.grdBitacora);
             this.Controls.Add(this.groupBox1);
             this.Controls.Add(this.panel1);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "Bitacora";
             this.Text = "Bitacora";
-            this.Load += new System.EventHandler(this.Bitacora_Load);
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();
             this.groupBox1.ResumeLayout(false);

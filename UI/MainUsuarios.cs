@@ -2,13 +2,13 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
-using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Windows.Forms;
+using Krypton.Toolkit;
 using BE;
 using BLL.Contracts;
-using Krypton.Toolkit;
 
 namespace UI
 {
@@ -16,58 +16,60 @@ namespace UI
     {
         private readonly IUsuarioService _svcUsuarios;
         private readonly IRolService _svcRoles;
+        private readonly int? _currentUserId;
+
         private BindingList<UsuarioVM> _view = new BindingList<UsuarioVM>();
 
-        public MainUsuarios(IUsuarioService usuarios, IRolService roles)
+        public MainUsuarios(IUsuarioService usuarios, IRolService roles, int? currentUserId = null)
         {
             InitializeComponent();
-
             _svcUsuarios = usuarios ?? throw new ArgumentNullException(nameof(usuarios));
             _svcRoles = roles ?? throw new ArgumentNullException(nameof(roles));
+            _currentUserId = currentUserId;
 
             Load += MainUsuarios_Load;
+
             btnBuscar.Click += (s, e) => Refrescar();
             btnLimpiar.Click += (s, e) => LimpiarFiltros();
             btnDescargar.Click += (s, e) => DescargarCsv();
             btnVolver.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
+
             btnAgregarr.Click += (s, e) => AbrirAltaUsuario(ModoForm.Alta, null);
 
             dgvUsuarios.CellFormatting += dgvUsuarios_CellFormatting;
             dgvUsuarios.CellContentClick += dgvUsuarios_CellContentClick;
 
-            FixScrollListado();
             ConfigurarGrid();
         }
 
         private void MainUsuarios_Load(object sender, EventArgs e)
         {
+            CargarCombos();
+            MapearColumnas();
+            Refrescar();
+        }
+
+        private void AbrirAltaUsuario(ModoForm modo, int? idUsuario)
+        {
             try
             {
-                CargarCombos();
-                MapearColumnas();
-                Refrescar();
+                using (var frm = new AltaUsuario(modo, idUsuario, _svcUsuarios, _svcRoles, _currentUserId))
+                {
+                    frm.StartPosition = FormStartPosition.CenterParent;
+                    if (frm.ShowDialog(this) == DialogResult.OK)
+                        Refrescar();
+                }
             }
             catch (Exception ex)
             {
-                BLL.Bitacora.Error(null, $"Error cargando MainUsuarios: {ex.Message}",
-                    "UI", "MainUsuarios_Load", host: Environment.MachineName);
+                BLL.Bitacora.Error(_currentUserId,
+                    "No se pudo abrir AltaUsuario: " + ex.Message,
+                    "UI", "MainUsuarios_AbrirAlta", host: Environment.MachineName);
 
                 KryptonMessageBox.Show(this,
-                    "Error cargando pantalla Usuarios:\n" + ex.Message,
+                    "No se pudo abrir AltaUsuario.\n\n" + ex.Message,
                     "Error", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
             }
-        }
-
-        private void FixScrollListado()
-        {
-            (dgvUsuarios?.Parent as Panel)?.Let(p => p.AutoScroll = true);
-            (dgvUsuarios?.Parent as KryptonPanel)?.Let(p => p.AutoScroll = true);
-
-            dgvUsuarios.Dock = DockStyle.Fill;
-            dgvUsuarios.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            dgvUsuarios.ScrollBars = ScrollBars.Both;
-            dgvUsuarios.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells;
-            dgvUsuarios.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
         }
 
         private void ConfigurarGrid()
@@ -81,37 +83,18 @@ namespace UI
             g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             g.RowHeadersVisible = false;
 
-            AddBtn("btnVer", "Ver", 60);
-            AddBtn("btnEditar", "Editar", 70);
-            AddBtn("btnBaja", "Baja", 60);
-            AddBtn("btnReactivar", "Reactivar", 90);
-
+            if (!g.Columns.Contains("btnVer"))
+                g.Columns.Add(new DataGridViewButtonColumn { Name = "btnVer", HeaderText = "Ver", Text = "Ver", UseColumnTextForButtonValue = true, Width = 60 });
+            if (!g.Columns.Contains("btnEditar"))
+                g.Columns.Add(new DataGridViewButtonColumn { Name = "btnEditar", HeaderText = "Editar", Text = "Editar", UseColumnTextForButtonValue = true, Width = 70 });
+            if (!g.Columns.Contains("btnBloquear"))
+                g.Columns.Add(new DataGridViewButtonColumn { Name = "btnBloquear", HeaderText = "Bloquear", Text = "Bloquear", UseColumnTextForButtonValue = true, Width = 90 });
+            if (!g.Columns.Contains("btnBaja"))
+                g.Columns.Add(new DataGridViewButtonColumn { Name = "btnBaja", HeaderText = "Baja", Text = "Baja", UseColumnTextForButtonValue = true, Width = 60 });
+            if (!g.Columns.Contains("btnReactivar"))
+                g.Columns.Add(new DataGridViewButtonColumn { Name = "btnReactivar", HeaderText = "Reactivar", UseColumnTextForButtonValue = false, Width = 90 });
             if (!g.Columns.Contains("colRoles"))
-            {
-                var col = new DataGridViewButtonColumn
-                {
-                    Name = "colRoles",
-                    HeaderText = "Roles",
-                    UseColumnTextForButtonValue = false,
-                    Width = 110,
-                    MinimumWidth = 110
-                };
-                g.Columns.Add(col);
-            }
-
-            void AddBtn(string name, string text, int w)
-            {
-                if (g.Columns.Contains(name)) return;
-                g.Columns.Add(new DataGridViewButtonColumn
-                {
-                    Name = name,
-                    HeaderText = text,
-                    Text = text,
-                    UseColumnTextForButtonValue = true,
-                    Width = w,
-                    MinimumWidth = w
-                });
-            }
+                g.Columns.Add(new DataGridViewButtonColumn { Name = "colRoles", HeaderText = "Roles", UseColumnTextForButtonValue = false, Width = 110 });
         }
 
         private void MapearColumnas()
@@ -120,24 +103,23 @@ namespace UI
             SetDP("Apellido", nameof(UsuarioVM.Apellido));
             SetDP("Nombre", nameof(UsuarioVM.Nombre));
             SetDP("Mail", nameof(UsuarioVM.Mail));
-            SetDP("Estado", nameof(UsuarioVM.Estado));
             SetDP("Rol", nameof(UsuarioVM.Rol));
+            SetDP("Estado", nameof(UsuarioVM.Estado));
+        }
 
-            void SetDP(string headerText, string prop)
-            {
-                var col = dgvUsuarios.Columns
-                    .Cast<DataGridViewColumn>()
-                    .FirstOrDefault(c => string.Equals((c.HeaderText ?? "").Trim(), headerText, StringComparison.OrdinalIgnoreCase));
-                if (col != null) col.DataPropertyName = prop;
-            }
+        private void SetDP(string headerText, string prop)
+        {
+            var col = dgvUsuarios.Columns.Cast<DataGridViewColumn>()
+                       .FirstOrDefault(c => (c.HeaderText ?? "").Trim().Equals(headerText, StringComparison.OrdinalIgnoreCase));
+            if (col != null) col.DataPropertyName = prop;
         }
 
         private void CargarCombos()
         {
             var estados = new List<ItemComboEstado>
             {
-                new ItemComboEstado { Texto = "Todos",    Valor = null },
-                new ItemComboEstado { Texto = "Activo",   Valor = true },
+                new ItemComboEstado { Texto = "Todos", Valor = null },
+                new ItemComboEstado { Texto = "Activo", Valor = true },
                 new ItemComboEstado { Texto = "Inactivo", Valor = false }
             };
             cboEstado.DisplayMember = nameof(ItemComboEstado.Texto);
@@ -165,12 +147,11 @@ namespace UI
                     Apellido = u.LastName,
                     Nombre = u.Name,
                     Mail = u.Email,
-                    Rol = ExtraerRolPrincipal(u),
+                    Rol = ExtraerRolPrincipal(u, _svcRoles),
                     Estado = u.EstadoDisplay
                 });
 
-            var filtrado = AplicarFiltros(modelo).ToList();
-            _view = new BindingList<UsuarioVM>(filtrado);
+            _view = new BindingList<UsuarioVM>(AplicarFiltros(modelo).ToList());
             dgvUsuarios.DataSource = _view;
 
             if (dgvUsuarios.Columns.Contains("Mail"))
@@ -179,7 +160,7 @@ namespace UI
 
         private IEnumerable<UsuarioVM> AplicarFiltros(IEnumerable<UsuarioVM> origen)
         {
-            string norm(string s)
+            string N(string s)
             {
                 if (string.IsNullOrWhiteSpace(s)) return string.Empty;
                 var n = s.Normalize(NormalizationForm.FormD);
@@ -189,32 +170,28 @@ namespace UI
                 return sb.ToString().ToLowerInvariant().Trim();
             }
 
-            bool Match(string fuente, string filtro) =>
-                string.IsNullOrEmpty(filtro) || norm(fuente).Contains(filtro);
+            bool Match(string fuente, string filtro) => string.IsNullOrEmpty(filtro) || N(fuente).Contains(filtro);
 
-            var fUsuario = norm(txtUsuario.Text);
-            var fNombre = norm(txtNombre.Text);
-            var fApellido = norm(txtApellido.Text);
-            var fMail = norm(txtMail.Text);
+            var fUsuario = N(txtUsuario.Text);
+            var fNombre = N(txtNombre.Text);
+            var fApellido = N(txtApellido.Text);
+            var fMail = N(txtMail.Text);
 
             bool? fActivo = (cboEstado.SelectedItem as ItemComboEstado)?.Valor;
             int? fRolId = (cboRol.SelectedItem as ItemComboRol)?.Id;
 
             var q = origen;
-
             if (!string.IsNullOrEmpty(fUsuario)) q = q.Where(x => Match(x.Usuario, fUsuario));
             if (!string.IsNullOrEmpty(fNombre)) q = q.Where(x => Match(x.Nombre, fNombre));
             if (!string.IsNullOrEmpty(fApellido)) q = q.Where(x => Match(x.Apellido, fApellido));
             if (!string.IsNullOrEmpty(fMail)) q = q.Where(x => Match(x.Mail, fMail));
 
             if (fActivo.HasValue)
-            {
-                if (fActivo.Value)
-                    q = q.Where(x => x.Estado.Equals("Habilitado", StringComparison.OrdinalIgnoreCase));
-                else
-                    q = q.Where(x => x.Estado.Equals("Inactivo", StringComparison.OrdinalIgnoreCase) ||
-                                     x.Estado.Equals("Bloqueado", StringComparison.OrdinalIgnoreCase));
-            }
+                q = fActivo.Value
+                    ? q.Where(x => x.Estado.Equals("Habilitado", StringComparison.OrdinalIgnoreCase))
+                    : q.Where(x => x.Estado.Equals("Inactivo", StringComparison.OrdinalIgnoreCase) ||
+                                   x.Estado.Equals("Bloqueado", StringComparison.OrdinalIgnoreCase) ||
+                                   x.Estado.Equals("Baja", StringComparison.OrdinalIgnoreCase));
 
             if (fRolId.HasValue)
                 q = q.Where(x =>
@@ -226,32 +203,12 @@ namespace UI
             return q;
         }
 
-        private static string ExtraerRolPrincipal(Usuario u)
+        private static string ExtraerRolPrincipal(Usuario u, IRolService rolSvc)
         {
-            if (u?.Permisos == null || u.Permisos.Count == 0) return "(sin rol)";
-            var familia = u.Permisos.FirstOrDefault(p => p != null && p.GetType().Name == "Familia");
-            return familia != null ? familia.Name : "(sin rol)";
-        }
-
-        private void AbrirAltaUsuario(ModoForm modo, int? idUsuario)
-        {
-            try
-            {
-                using (var frm = new AltaUsuario(modo, idUsuario, _svcUsuarios, _svcRoles))
-                {
-                    frm.StartPosition = FormStartPosition.CenterParent;
-                    if (frm.ShowDialog(this) == DialogResult.OK)
-                        Refrescar();
-                }
-            }
-            catch (Exception ex)
-            {
-                BLL.Bitacora.Error(null, $"No se pudo abrir AltaUsuario: {ex.Message}",
-                    "UI", "MainUsuarios_AbrirAlta", host: Environment.MachineName);
-
-                KryptonMessageBox.Show("No se pudo abrir AltaUsuario.\n\n" + ex.Message,
-                    "Error", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
-            }
+            if (u == null) return "(sin rol)";
+            var familias = rolSvc.GetFamiliasUsuario(u.Id) ?? new List<Familia>();
+            var f = familias.FirstOrDefault();
+            return f != null ? f.Name : "(sin rol)";
         }
 
         private void dgvUsuarios_CellContentClick(object sender, DataGridViewCellEventArgs e)
@@ -272,72 +229,91 @@ namespace UI
                     AbrirAltaUsuario(ModoForm.Editar, vm.Id);
                     break;
 
-                case "btnBaja":
+                case "btnBloquear":
                     {
-                        if (KryptonMessageBox.Show(this,
-                                "¿Dar de baja al usuario seleccionado?",
-                                "Confirmar", KryptonMessageBoxButtons.YesNo,
-                                KryptonMessageBoxIcon.Question) != DialogResult.Yes)
-                            return;
+                        var dr = KryptonMessageBox.Show(this,
+                            $"¿Bloquear al usuario '{vm.Usuario}'?",
+                            "Confirmar", KryptonMessageBoxButtons.YesNo, KryptonMessageBoxIcon.Question);
+                        if (dr != DialogResult.Yes) return;
 
                         try
                         {
-                            // ✔ ahora usamos la baja transaccional del servicio
-                            if (!_svcUsuarios.TryBajaUsuarios(new[] { vm.Id }, out var motivo))
-                            {
-                                ShowWarn("No se pudo dar de baja el usuario.\n\n" + motivo);
-                                return;
-                            }
-
-                            ShowInfo("Usuario dado de baja correctamente.");
+                            bool ok = _svcUsuarios.Bloquear(vm.Id);
+                            KryptonMessageBox.Show(this,
+                                ok ? "Usuario bloqueado correctamente." : "No se pudo bloquear el usuario.",
+                                "Usuarios",
+                                KryptonMessageBoxButtons.OK,
+                                ok ? KryptonMessageBoxIcon.Information : KryptonMessageBoxIcon.Warning);
                             Refrescar();
                         }
                         catch (Exception ex)
                         {
-                            BLL.Bitacora.Error(null, $"Baja de usuario {vm.Usuario} falló: {ex.Message}",
-                                "UI", "MainUsuarios_Baja", host: Environment.MachineName);
-
                             KryptonMessageBox.Show(this,
-                                "Ocurrió un error realizando la baja.\n\n" + ex.Message,
-                                "Error", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
+                                "Error al bloquear usuario:\n" + ex.Message,
+                                "Usuarios", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
+                        }
+                        break;
+                    }
+
+                case "btnBaja":
+                    {
+                        var dr = KryptonMessageBox.Show(this,
+                            $"¿Dar de baja al usuario '{vm.Usuario}'?",
+                            "Confirmar", KryptonMessageBoxButtons.YesNo, KryptonMessageBoxIcon.Question);
+                        if (dr != DialogResult.Yes) return;
+
+                        try
+                        {
+                            string msg;
+                            bool ok = _svcUsuarios.BajaLogicaSegura(vm.Id, out msg);
+                            KryptonMessageBox.Show(this, msg, "Usuarios",
+                                KryptonMessageBoxButtons.OK,
+                                ok ? KryptonMessageBoxIcon.Information : KryptonMessageBoxIcon.Warning);
+                            Refrescar();
+                        }
+                        catch (Exception ex)
+                        {
+                            KryptonMessageBox.Show(this,
+                                "Error inesperado al dar de baja:\n" + ex.Message,
+                                "Usuarios", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
                         }
                         break;
                     }
 
                 case "btnReactivar":
-                    if (KryptonMessageBox.Show("¿Desbloquear / reactivar al usuario?", "Confirmar",
-                        KryptonMessageBoxButtons.YesNo) == DialogResult.Yes)
-                    {
-                        _svcUsuarios.DesbloquearUsuario(vm.Id);
-                        Refrescar();
-                    }
+                    CambiarEstadoUsuario(vm.Id, destinoHabilitado: true);
                     break;
-
-                case "colRoles":
-                    {
-                        var usuario = _svcUsuarios.GetById(vm.Id);
-                        var idsActuales = (_svcRoles.GetFamiliasUsuario(vm.Id) ?? new List<Familia>()).Select(f => f.Id);
-                        using (var dlg = new DialogRolesUsuario(usuario, idsActuales))
-                        {
-                            if (dlg.ShowDialog(this) == DialogResult.OK)
-                            {
-                                _svcRoles.SetFamiliasDeUsuario(vm.Id, dlg.FamiliasSeleccionadasIds);
-                                Refrescar();
-                            }
-                        }
-                        break;
-                    }
             }
         }
 
-        // ---- Helpers UI ----
-        private void ShowInfo(string msg) =>
-            KryptonMessageBox.Show(this, msg, "Información",
-                KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Information);
+        private void CambiarEstadoUsuario(int idUsuario, bool destinoHabilitado)
+        {
+            try
+            {
+                var u = _svcUsuarios.GetById(idUsuario);
+                if (u == null)
+                {
+                    KryptonMessageBox.Show(this, "No se encontró el usuario.", "Usuarios",
+                        KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Warning);
+                    return;
+                }
 
-        private void ShowWarn(string msg) =>
-            KryptonMessageBox.Show(this, msg, "Aviso",
-                KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Warning);
+                if (destinoHabilitado)
+                {
+                    _svcUsuarios.Desbloquear(idUsuario);
+                    KryptonMessageBox.Show(this, "Usuario reactivado correctamente.", "Usuarios",
+                        KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Information);
+                }
+
+                Refrescar();
+            }
+            catch (Exception ex)
+            {
+                KryptonMessageBox.Show(this,
+                    "Error al cambiar estado del usuario:\n" + ex.Message,
+                    "Usuarios", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
+            }
+        }
 
         private void dgvUsuarios_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
@@ -350,21 +326,7 @@ namespace UI
             if (name == "colRoles")
             {
                 var familias = _svcRoles.GetFamiliasUsuario(vm.Id) ?? new List<Familia>();
-                dgvUsuarios.Rows[e.RowIndex].Cells[e.ColumnIndex].Value = $"Roles ({familias.Count})";
-                return;
-            }
-
-            if (name == "btnReactivar")
-            {
-                if (dgvUsuarios.Rows[e.RowIndex].Cells[e.ColumnIndex] is DataGridViewButtonCell cell)
-                {
-                    bool mostrar =
-                        vm.Estado.Equals("Bloqueado", StringComparison.OrdinalIgnoreCase) ||
-                        vm.Estado.Equals("Inactivo", StringComparison.OrdinalIgnoreCase);
-
-                    cell.Value = mostrar ? "Reactivar" : "—";
-                    cell.ReadOnly = !mostrar;
-                }
+                e.Value = $"Roles ({familias.Count})";
             }
         }
 
@@ -383,7 +345,7 @@ namespace UI
         {
             if (_view == null || _view.Count == 0)
             {
-                KryptonMessageBox.Show("No hay datos para exportar.", "Información");
+                KryptonMessageBox.Show(this, "No hay datos para exportar.", "Información");
                 return;
             }
 
@@ -400,20 +362,24 @@ namespace UI
                 sb.AppendLine(string.Join(sep, new[] { "Usuario", "Apellido", "Nombre", "Mail", "Rol", "Estado" }));
                 foreach (var u in _view)
                 {
-                    string Esc(string s) => "\"" + (s ?? string.Empty).Replace("\"", "\"\"") + "\"";
                     sb.AppendLine(string.Join(sep, new[]
                     {
                         Esc(u.Usuario), Esc(u.Apellido), Esc(u.Nombre), Esc(u.Mail), Esc(u.Rol), Esc(u.Estado)
                     }));
                 }
-                File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
+                System.IO.File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
             }
 
-            KryptonMessageBox.Show("Archivo exportado correctamente.", "Éxito");
+            KryptonMessageBox.Show(this, "Archivo exportado correctamente.", "Éxito");
+        }
+
+        private string Esc(string s)
+        {
+            if (s == null) s = string.Empty;
+            return "\"" + s.Replace("\"", "\"\"") + "\"";
         }
     }
 
-    // ===== VMs / combos =====
     public class UsuarioVM
     {
         public int Id { get; set; }
@@ -425,24 +391,6 @@ namespace UI
         public string Estado { get; set; }
     }
 
-    public class ItemComboEstado
-    {
-        public string Texto { get; set; }
-        public bool? Valor { get; set; }
-    }
-
-    public class ItemComboRol
-    {
-        public int? Id { get; set; }
-        public string Nombre { get; set; }
-    }
-
-    // helper de extensión para sintaxis más limpia
-    internal static class ObjExt
-    {
-        public static void Let<T>(this T obj, Action<T> act) where T : class
-        {
-            if (obj != null) act(obj);
-        }
-    }
+    public class ItemComboEstado { public string Texto { get; set; } public bool? Valor { get; set; } }
+    public class ItemComboRol { public int? Id { get; set; } public string Nombre { get; set; } }
 }

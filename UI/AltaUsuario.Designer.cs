@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(AltaUsuario));
             this.panel1 = new System.Windows.Forms.Panel();
             this.btnVolver = new System.Windows.Forms.Button();
             this.label2 = new System.Windows.Forms.Label();
@@ -60,7 +61,6 @@
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(1085, 57);
             this.panel1.TabIndex = 15;
-            this.panel1.Paint += new System.Windows.Forms.PaintEventHandler(this.panel1_Paint);
             // 
             // btnVolver
             // 
@@ -77,9 +77,9 @@
             this.label2.Font = new System.Drawing.Font("Segoe UI Semibold", 16.2F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.label2.Location = new System.Drawing.Point(12, 6);
             this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(185, 38);
+            this.label2.Size = new System.Drawing.Size(181, 38);
             this.label2.TabIndex = 7;
-            this.label2.Text = "ITX - Familias";
+            this.label2.Text = "ITX - Usuario";
             // 
             // lblNombre
             // 
@@ -223,7 +223,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1090, 436);
+            this.ClientSize = new System.Drawing.Size(1094, 422);
             this.Controls.Add(this.btnGuardar);
             this.Controls.Add(this.txtApellido);
             this.Controls.Add(this.txtEmail);
@@ -240,6 +240,7 @@
             this.Controls.Add(this.lblApellido);
             this.Controls.Add(this.lblNombre);
             this.Controls.Add(this.panel1);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "AltaUsuario";
             this.Text = "AltaUsuario";
             this.Load += new System.EventHandler(this.AltaUsuario_Load);

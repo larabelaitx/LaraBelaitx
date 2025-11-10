@@ -86,7 +86,6 @@ namespace DAL
         #region CRUD – altas/modificaciones/bajas
         public bool Add(Usuario usuario, DVH dvh)
         {
-            // Permite duplicar usuario/mail/doc de registros dados de baja (IdEstado = 3)
             const string qCheck = @"
                 SELECT COUNT(*)
                   FROM dbo.Usuario
@@ -124,8 +123,9 @@ namespace DAL
                 new SqlParameter("@IdIdioma", (object)(usuario.IdiomaId ?? 1)),
                 new SqlParameter("@Usuario", usuario.UserName),
 
-                VarBinaryParamFromB64("@PasswordHash", usuario.PasswordHash, 32),
-                VarBinaryParamFromB64("@PasswordSalt", usuario.PasswordSalt, 16),
+                // 🔐 Dinámicos para NO truncar
+                VarBinaryParamDyn("@PasswordHash", usuario.PasswordHash),
+                VarBinaryParamDyn("@PasswordSalt", usuario.PasswordSalt),
                 new SqlParameter("@PasswordIterations", usuario.PasswordIterations > 0 ? usuario.PasswordIterations : 100000),
 
                 new SqlParameter("@Nombre",    DbOrNull(usuario.Name)),
@@ -148,9 +148,69 @@ namespace DAL
             return false;
         }
 
+        public int AddReturnId(Usuario usuario, DVH dvh)
+        {
+            const string qCheck = @"
+                SELECT COUNT(*) FROM dbo.Usuario
+                WHERE IdEstado <> 3
+                  AND ( Usuario = @u
+                     OR (Mail = @m  AND @m  IS NOT NULL)
+                     OR (Documento = @d AND @d IS NOT NULL) );";
+
+            var exists = SqlHelpers.GetInstance(Cnn).ExecuteScalar(
+                qCheck,
+                new List<SqlParameter>{
+                    new SqlParameter("@u", usuario.UserName),
+                    new SqlParameter("@m", (object)usuario.Email ?? DBNull.Value),
+                    new SqlParameter("@d", (object)usuario.Documento ?? DBNull.Value)
+                });
+            if (Convert.ToInt32(exists) > 0)
+                throw new Exception("Usuario, Mail o Documento ya existente.");
+
+            const string qIns = @"
+                INSERT INTO dbo.Usuario
+                    (IdEstado, IdIdioma, Usuario,
+                     PasswordHash, PasswordSalt, PasswordIterations,
+                     Nombre, Apellido, Mail, Documento,
+                     NroIntentos, DVH, DebeCambiarContrasena)
+                VALUES
+                    (@IdEstado, @IdIdioma, @Usuario,
+                     @PasswordHash, @PasswordSalt, @PasswordIterations,
+                     @Nombre, @Apellido, @Mail, @Documento,
+                     @NroIntentos, @DVH, @DebeCambiarContrasena);
+                SELECT CAST(SCOPE_IDENTITY() AS INT);";
+
+            var ps = new List<SqlParameter>
+            {
+                new SqlParameter("@IdEstado", usuario.EstadoUsuarioId > 0 ? usuario.EstadoUsuarioId : 1),
+                new SqlParameter("@IdIdioma", (object)(usuario.IdiomaId ?? 1)),
+                new SqlParameter("@Usuario", usuario.UserName),
+
+                // 🔐 Dinámicos para NO truncar
+                VarBinaryParamDyn("@PasswordHash", usuario.PasswordHash),
+                VarBinaryParamDyn("@PasswordSalt", usuario.PasswordSalt),
+                new SqlParameter("@PasswordIterations", usuario.PasswordIterations > 0 ? usuario.PasswordIterations : 100000),
+
+                new SqlParameter("@Nombre",    DbOrNull(usuario.Name)),
+                new SqlParameter("@Apellido",  DbOrNull(usuario.LastName)),
+                new SqlParameter("@Mail",      DbOrNull(usuario.Email)),
+                new SqlParameter("@Documento", DbOrNull(usuario.Documento)),
+                new SqlParameter("@NroIntentos", usuario.Tries),
+                new SqlParameter("@DVH", dvh?.dvh ?? (object)DBNull.Value),
+                new SqlParameter("@DebeCambiarContrasena", usuario.DebeCambiarContraseña)
+            };
+
+            var newId = Convert.ToInt32(SqlHelpers.GetInstance(Cnn).ExecuteScalar(qIns, ps));
+
+            // Recalcular DVV
+            var dvv = DVVDao.GetInstance().CalculateDVV("dbo.Usuario");
+            DVVDao.GetInstance().AddUpdateDVV(new DVV { tabla = "Usuario", dvv = dvv });
+
+            return newId;
+        }
+
         public bool Update(Usuario usuario, DVH dvh)
         {
-            // Evita colisiones con otros usuarios (los dados de baja NO bloquean)
             if (!string.IsNullOrWhiteSpace(usuario.Documento) &&
                 ExisteDocumento(usuario.Documento.Trim(), excluirId: usuario.Id))
                 throw new Exception("El documento ya está en uso por otro usuario.");
@@ -185,8 +245,9 @@ namespace DAL
                 new SqlParameter("@Mail",      DbOrNull(usuario.Email)),
                 new SqlParameter("@Documento", DbOrNull(usuario.Documento)),
 
-                VarBinaryParam("@PasswordHash", usuario.PasswordHash, 32),
-                VarBinaryParam("@PasswordSalt", usuario.PasswordSalt, 16),
+                // 🔐 Dinámicos para NO truncar (se respetan nulls con COALESCE)
+                VarBinaryParamDyn("@PasswordHash", usuario.PasswordHash),
+                VarBinaryParamDyn("@PasswordSalt", usuario.PasswordSalt),
                 new SqlParameter("@PasswordIterations",
                     usuario.PasswordIterations > 0 ? (object)usuario.PasswordIterations : DBNull.Value),
 
@@ -209,28 +270,160 @@ namespace DAL
 
         public bool Delete(Usuario usuario, DVH dvh)
         {
-            // No permitir dejar el sistema sin usuarios activos
-            const string qActivos = "SELECT COUNT(*) FROM dbo.Usuario WHERE IdEstado <> 3;";
-            var activos = Convert.ToInt32(SqlHelpers.GetInstance(Cnn).ExecuteScalar(qActivos));
-            if (activos <= 1)
-                throw new Exception("No se puede eliminar: quedaría el sistema sin usuarios.");
-
-            const string qDel = "UPDATE dbo.Usuario SET IdEstado = 3, DVH = @DVH WHERE IdUsuario = @Id;";
-            var ps = new List<SqlParameter>
+            using (var cn = ConnectionFactory.Open())
+            using (var tx = cn.BeginTransaction())
             {
-                new SqlParameter("@Id",  usuario.Id),
-                new SqlParameter("@DVH", dvh?.dvh ?? (object)DBNull.Value)
-            };
+                try
+                {
+                    int existe;
+                    using (var cmd = new SqlCommand(
+                        "SELECT COUNT(*) FROM dbo.Usuario WITH (UPDLOCK, HOLDLOCK) WHERE IdUsuario = @id;", cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@id", usuario.Id);
+                        existe = Convert.ToInt32(cmd.ExecuteScalar());
+                    }
+                    if (existe == 0)
+                        throw new Exception("El usuario a eliminar no existe.");
 
-            var rows = SqlHelpers.GetInstance(Cnn).ExecuteQuery(qDel, ps);
-            if (rows > 0)
-            {
-                var dvv = DVVDao.GetInstance().CalculateDVV("dbo.Usuario");
-                DVVDao.GetInstance().AddUpdateDVV(new DVV { tabla = "Usuario", dvv = dvv });
-                return true;
+                    int vivos;
+                    using (var cmd = new SqlCommand(
+                        "SELECT COUNT(*) FROM dbo.Usuario WITH (UPDLOCK, HOLDLOCK) WHERE IdEstado <> 3 AND IdUsuario <> @id;", cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@id", usuario.Id);
+                        vivos = Convert.ToInt32(cmd.ExecuteScalar());
+                    }
+                    if (vivos <= 0)
+                        throw new Exception("No se puede eliminar: quedaría el sistema sin usuarios.");
+
+                    using (var cmd = new SqlCommand(
+                        "UPDATE dbo.Usuario SET IdEstado = 3, DVH = @DVH WHERE IdUsuario = @Id;", cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@Id", usuario.Id);
+                        cmd.Parameters.AddWithValue("@DVH", (object)dvh?.dvh ?? DBNull.Value);
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    var dvv = DVVDao.GetInstance().CalculateDVV_tx(cn, tx, "dbo.Usuario");
+                    DVVDao.UpsertDVV_tx(cn, tx, "Usuario", dvv);
+
+                    tx.Commit();
+                    return true;
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
             }
-            return false;
         }
+
+        public bool CambiarEstado(int idUsuario, int nuevoEstado, DVH dvh = null)
+        {
+            const string sql = @"
+                UPDATE dbo.Usuario
+                   SET IdEstado = @Estado,
+                       DVH      = @DVH
+                 WHERE IdUsuario = @Id;";
+
+            var rows = SqlHelpers.GetInstance(Cnn).ExecuteQuery(
+                sql,
+                new List<SqlParameter> {
+            new SqlParameter("@Estado", nuevoEstado),
+            new SqlParameter("@DVH", (object)dvh?.dvh ?? DBNull.Value),
+            new SqlParameter("@Id", idUsuario)
+                });
+
+            // Recalcular DVV de la tabla Usuario después de la actualización
+            var dvv = DVVDao.GetInstance().CalculateDVV("dbo.Usuario");
+            DVVDao.GetInstance().AddUpdateDVV(new DVV { tabla = "Usuario", dvv = dvv });
+
+            return rows > 0;
+        }
+
+        public bool BajaLogicaSegura(int idUsuario, out string mensaje)
+        {
+            mensaje = null;
+
+            using (var cn = ConnectionFactory.Open())
+            using (var tx = cn.BeginTransaction())
+            {
+                try
+                {
+                    // 1️⃣ Verifica existencia
+                    using (var cmd = new SqlCommand("SELECT COUNT(*) FROM Usuario WITH (UPDLOCK, HOLDLOCK) WHERE IdUsuario = @id", cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@id", idUsuario);
+                        if (Convert.ToInt32(cmd.ExecuteScalar()) == 0)
+                        {
+                            mensaje = "El usuario no existe.";
+                            tx.Rollback();
+                            return false;
+                        }
+                    }
+
+                    // 2️⃣ Evita dejar al sistema sin Administrador activo
+                    const string qCheckAdmin = @"
+                SELECT COUNT(*) 
+                FROM Usuario u
+                JOIN UsuarioFamilia uf ON uf.IdUsuario = u.IdUsuario
+                JOIN Familia f ON f.IdFamilia = uf.IdFamilia
+                WHERE u.IdEstado = 1 AND f.Nombre = 'Administrador' AND u.IdUsuario <> @id;";
+
+                    using (var cmd = new SqlCommand(qCheckAdmin, cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@id", idUsuario);
+                        if (Convert.ToInt32(cmd.ExecuteScalar()) == 0)
+                        {
+                            mensaje = "Debe quedar al menos un usuario activo con el rol Administrador.";
+                            tx.Rollback();
+                            return false;
+                        }
+                    }
+
+                    // 3️⃣ Evita patentes huérfanas
+                    const string qCheckPatentes = @"
+                SELECT COUNT(*) 
+                FROM UsuarioPatente up
+                WHERE up.IdUsuario = @id
+                  AND NOT EXISTS (SELECT 1 FROM UsuarioPatente up2 WHERE up2.IdPatente = up.IdPatente AND up2.IdUsuario <> @id)
+                  AND NOT EXISTS (SELECT 1 FROM FamiliaPatente fp WHERE fp.IdPatente = up.IdPatente);";
+
+                    using (var cmd = new SqlCommand(qCheckPatentes, cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@id", idUsuario);
+                        if (Convert.ToInt32(cmd.ExecuteScalar()) > 0)
+                        {
+                            mensaje = "La baja dejaría patentes huérfanas. Reasigná esas patentes a otra familia o usuario.";
+                            tx.Rollback();
+                            return false;
+                        }
+                    }
+
+                    // 4️⃣ Baja lógica + limpieza
+                    using (var cmd = new SqlCommand("UPDATE Usuario SET IdEstado = 3 WHERE IdUsuario = @id", cn, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@id", idUsuario);
+                        cmd.ExecuteNonQuery();
+                    }
+                    new SqlCommand("DELETE FROM UsuarioFamilia WHERE IdUsuario = @id", cn, tx)
+                    { Parameters = { new SqlParameter("@id", idUsuario) } }.ExecuteNonQuery();
+                    new SqlCommand("DELETE FROM UsuarioPatente WHERE IdUsuario = @id", cn, tx)
+                    { Parameters = { new SqlParameter("@id", idUsuario) } }.ExecuteNonQuery();
+
+                    tx.Commit();
+                    mensaje = "Usuario dado de baja correctamente.";
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    tx.Rollback();
+                    mensaje = $"Error interno: {ex.Message}";
+                    return false;
+                }
+            }
+        }
+
+
         #endregion
 
         #region Login / Último login
@@ -368,7 +561,7 @@ namespace DAL
         }
         #endregion
 
-        #region Usuario–Patente y helpers baja transaccional
+        #region Usuario–Patente (incluye R2)
         public bool SetPatentesDeUsuario(int idUsuario, IList<int> patentesIds)
         {
             patentesIds = patentesIds?.Distinct().ToList() ?? new List<int>();
@@ -378,7 +571,6 @@ namespace DAL
             {
                 try
                 {
-                    // Patentes actuales (con UPDLOCK para consistencia)
                     var actuales = new List<int>();
                     using (var cmd = new SqlCommand(
                         "SELECT IdPatente FROM dbo.UsuarioPatente WITH (UPDLOCK) WHERE IdUsuario = @u;", cn, tx))
@@ -388,16 +580,22 @@ namespace DAL
                             while (rd.Read()) actuales.Add(rd.GetInt32(0));
                     }
 
-                    // Validación anti-huérfanas: no quitar la última asignación de una patente
                     var removidas = actuales.Except(patentesIds).ToList();
+
+                    // 🔹 Validación corregida: se bloquea solo si la patente quedaría huérfana globalmente
                     foreach (var idPat in removidas)
                     {
-                        int restantes = PatenteDao.GetInstance()
+                        int asignacionesRestantes = PatenteDao.GetInstance()
                             .CountAsignacionesExcluyendoUsuario_tx(cn, tx, idPat, idUsuario);
-                        if (restantes <= 0)
-                            throw new Exception($"No se puede quitar la patente (Id={idPat}) porque quedaría sin asignar.");
+
+                        if (asignacionesRestantes <= 0)
+                            throw new Exception($"No se puede quitar la patente (Id={idPat}) porque quedaría sin asignar en el sistema.");
                     }
 
+                    // 🔹 Ya no es necesario chequear si el usuario la conserva por familia;
+                    // si la conserva por familia, simplemente no estará en 'removidas'
+
+                    // Limpia todas las relaciones y vuelve a insertar las vigentes
                     using (var del = new SqlCommand(
                         "DELETE FROM dbo.UsuarioPatente WHERE IdUsuario = @u;", cn, tx))
                     {
@@ -419,8 +617,8 @@ namespace DAL
                         }
                     }
 
-                    // DVV usando las funciones transaccionales
-                    var dvv = DVVDao.GetInstance().CalculateDVV("dbo.UsuarioPatente");
+                    // 🔹 Recalcular DVV de la tabla
+                    var dvv = DVVDao.GetInstance().CalculateDVV_tx(cn, tx, "dbo.UsuarioPatente");
                     DVVDao.UpsertDVV_tx(cn, tx, "UsuarioPatente", dvv);
 
                     tx.Commit();
@@ -434,96 +632,27 @@ namespace DAL
             }
         }
 
-        public int CountHabilitados()
-        {
-            using (var cn = ConnectionFactory.Open())
-            using (var cmd = new SqlCommand(@"SELECT COUNT(*) FROM dbo.Usuario WHERE IdEstado = 1;", cn))
-            {
-                return Convert.ToInt32(cmd.ExecuteScalar());
-            }
-        }
-
-        public int CountHabilitados(IEnumerable<int> ids)
-        {
-            var lista = (ids ?? Enumerable.Empty<int>()).Distinct().ToList();
-            if (lista.Count == 0) return 0;
-
-            var prm = Enumerable.Range(0, lista.Count).Select(i => "@p" + i).ToList();
-            var sql = $"SELECT COUNT(*) FROM dbo.Usuario WHERE IdEstado = 1 AND IdUsuario IN ({string.Join(",", prm)});";
-
-            using (var cn = ConnectionFactory.Open())
-            using (var cmd = new SqlCommand(sql, cn))
-            {
-                for (int i = 0; i < lista.Count; i++)
-                    cmd.Parameters.AddWithValue("@p" + i, lista[i]);
-                return Convert.ToInt32(cmd.ExecuteScalar());
-            }
-        }
-
-        public int CountAdminsActivos()
+        private bool UsuarioConservaPorFamilia_tx(SqlConnection cn, SqlTransaction tx, int idUsuario, int idPatente)
         {
             const string sql = @"
-                SELECT COUNT(DISTINCT u.IdUsuario)
-                  FROM dbo.Usuario u
-                  JOIN dbo.UsuarioFamilia uf ON uf.IdUsuario = u.IdUsuario
-                  JOIN dbo.Familia f        ON f.IdFamilia = uf.IdFamilia
-                 WHERE u.IdEstado = 1 AND f.Nombre = 'Administrador';";
+                SELECT TOP 1 1
+                  FROM dbo.UsuarioFamilia uf WITH (UPDLOCK)
+                  JOIN dbo.FamiliaPatente fp WITH (UPDLOCK)
+                    ON fp.IdFamilia = uf.IdFamilia
+                 WHERE uf.IdUsuario = @u
+                   AND fp.IdPatente = @p;";
 
-            return Convert.ToInt32(SqlHelpers.GetInstance(Cnn).ExecuteScalar(sql));
-        }
-
-        public int CountAdminsActivos(IEnumerable<int> ids)
-        {
-            var lista = (ids ?? Enumerable.Empty<int>()).Distinct().ToList();
-            if (lista.Count == 0) return 0;
-
-            var prm = Enumerable.Range(0, lista.Count).Select(i => "@p" + i).ToList();
-            var sql = $@"
-                SELECT COUNT(DISTINCT u.IdUsuario)
-                  FROM dbo.Usuario u
-                  JOIN dbo.UsuarioFamilia uf ON uf.IdUsuario = u.IdUsuario
-                  JOIN dbo.Familia f        ON f.IdFamilia = uf.IdFamilia
-                 WHERE u.IdEstado = 1 AND f.Nombre = 'Administrador'
-                   AND u.IdUsuario IN ({string.Join(",", prm)});";
-
-            using (var cn = ConnectionFactory.Open())
-            using (var cmd = new SqlCommand(sql, cn))
+            using (var cmd = new SqlCommand(sql, cn, tx))
             {
-                for (int i = 0; i < lista.Count; i++)
-                    cmd.Parameters.AddWithValue("@p" + i, lista[i]);
-                return Convert.ToInt32(cmd.ExecuteScalar());
+                cmd.Parameters.AddWithValue("@u", idUsuario);
+                cmd.Parameters.AddWithValue("@p", idPatente);
+                var r = cmd.ExecuteScalar();
+                return r != null;
             }
-        }
-
-        public void RemoveFamiliasDeUsuario(int idUsuario)
-        {
-            const string sql = "DELETE FROM dbo.UsuarioFamilia WHERE IdUsuario = @u;";
-            SqlHelpers.GetInstance(Cnn).ExecuteQuery(sql, new List<SqlParameter> { new SqlParameter("@u", idUsuario) });
-
-            var dvv = DVVDao.GetInstance().CalculateDVV("dbo.UsuarioFamilia");
-            DVVDao.GetInstance().AddUpdateDVV(new DVV { tabla = "UsuarioFamilia", dvv = dvv });
-        }
-
-        public void RemovePatentesDeUsuario(int idUsuario)
-        {
-            const string sql = "DELETE FROM dbo.UsuarioPatente WHERE IdUsuario = @u;";
-            SqlHelpers.GetInstance(Cnn).ExecuteQuery(sql, new List<SqlParameter> { new SqlParameter("@u", idUsuario) });
-
-            var dvv = DVVDao.GetInstance().CalculateDVV("dbo.UsuarioPatente");
-            DVVDao.GetInstance().AddUpdateDVV(new DVV { tabla = "UsuarioPatente", dvv = dvv });
-        }
-
-        public void BajaLogica(int idUsuario)
-        {
-            const string sql = "UPDATE dbo.Usuario SET IdEstado = 3 WHERE IdUsuario = @u;";
-            SqlHelpers.GetInstance(Cnn).ExecuteQuery(sql, new List<SqlParameter> { new SqlParameter("@u", idUsuario) });
-
-            var dvv = DVVDao.GetInstance().CalculateDVV("dbo.Usuario");
-            DVVDao.GetInstance().AddUpdateDVV(new DVV { tabla = "Usuario", dvv = dvv });
         }
         #endregion
 
-        #region Helpers VARBINARY
+        #region Helpers VARBINARY (incluye versión dinámica)
         private static SqlParameter VarBinaryParam(string name, byte[] value, int size)
         {
             var p = new SqlParameter(name, System.Data.SqlDbType.VarBinary, size);
@@ -538,6 +667,18 @@ namespace DAL
             else if (value is string s && !string.IsNullOrWhiteSpace(s))
             { try { bytes = Convert.FromBase64String(s); } catch { bytes = null; } }
             return VarBinaryParam(name, bytes, size);
+        }
+
+        private static SqlParameter VarBinaryParamDyn(string name, object value)
+        {
+            byte[] bytes = null;
+            if (value is byte[] b) bytes = b;
+            else if (value is string s && !string.IsNullOrWhiteSpace(s))
+            { try { bytes = Convert.FromBase64String(s); } catch { bytes = null; } }
+
+            var p = new SqlParameter(name, System.Data.SqlDbType.VarBinary, bytes?.Length ?? -1);
+            p.Value = (object)bytes ?? DBNull.Value;
+            return p;
         }
         #endregion
 

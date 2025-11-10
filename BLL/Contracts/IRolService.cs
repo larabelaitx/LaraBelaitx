@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿// BLL.Contracts/IRolService.cs
+using System.Collections.Generic;
 
 public interface IRolService
 {
@@ -9,7 +10,7 @@ public interface IRolService
     bool ActualizarFamilia(BE.Familia f);
     bool EliminarFamilia(int idFamilia);
 
-    // ===== Patentes
+    // ===== Patentes globales
     List<BE.Patente> GetPatentes();
     List<BE.Patente> GetPatentesDeFamilia(int idFamilia);
     bool SetPatentesDeFamilia(int idFamilia, IEnumerable<int> idsPatentes);
@@ -24,4 +25,17 @@ public interface IRolService
     bool SetPatentesDeUsuario(int idUsuario, IEnumerable<int> idsPatentes);
     List<BE.Patente> GetPatentesDeUsuario(int idUsuario);
 
+    // ===== Chequeos de permisos
+    bool TienePatente(int idUsuario, string codigoPatente);
+    void ThrowIfNotAllowed(int idUsuario, string codigoPatente);
+    bool TieneAlguna(int idUsuario, params string[] codigos);
+    bool TieneTodas(int idUsuario, params string[] codigos);
+
+    // ===== Wrappers SEGUROS (requieren id del solicitante)
+    bool SetPatentesDeUsuarioSecure(int requesterUserId, int targetUserId, IEnumerable<int> idsPatentes);
+    bool SetPatentesDeFamiliaSecure(int requesterUserId, int idFamilia, IEnumerable<int> idsPatentes);
+    bool SetFamiliasDeUsuarioSecure(int requesterUserId, int targetUserId, IEnumerable<int> familiasIds);
+    bool EliminarFamiliaSecure(int requesterUserId, int idFamilia);
+    int CrearFamiliaSecure(int requesterUserId, BE.Familia f);
+    bool ActualizarFamiliaSecure(int requesterUserId, BE.Familia f);
 }

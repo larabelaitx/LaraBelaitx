@@ -1,4 +1,4 @@
-﻿// BLL.Contracts / IUsuarioService.cs
+﻿// IUsuarioService.cs
 using System.Collections.Generic;
 using BE;
 
@@ -9,10 +9,14 @@ public interface IUsuarioService
     List<Usuario> GetAll();
     List<Usuario> GetAllActive();
 
-    bool CrearConPassword(Usuario u, string plainPassword);
+    int CrearConPassword(Usuario u, string plainPassword);
+
     bool Crear(Usuario u);
     bool Actualizar(Usuario u);
     bool BajaLogica(Usuario u);
+
+    bool Bloquear(int idUsuario);
+    bool Desbloquear(int idUsuario);
 
     bool Login(string userName, string plainPassword, out Usuario usuario);
     void DesbloquearUsuario(int idUsuario);
@@ -23,9 +27,14 @@ public interface IUsuarioService
     bool ExisteEmail(string email);
     bool ExisteDocumento(string documento);
 
-    // Validación previa (opcional)
     bool PuedeEliminarUsuarios(IEnumerable<int> idsAEliminar, out string motivo);
-
-    // ✅ La que falta y usa MainUsuarios.cs
     bool TryBajaUsuarios(IEnumerable<int> ids, out string motivo);
+
+    bool CambiarEstado(int idUsuario, int nuevoEstado);
+    bool Reactivar(int idUsuario);     
+    bool DarDeBaja(int idUsuario);   
+
+    bool Update(Usuario u);         
+
+    bool BajaLogicaSegura(int idUsuario, out string mensaje);
 }

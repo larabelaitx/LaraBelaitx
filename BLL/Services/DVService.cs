@@ -15,14 +15,14 @@ namespace BLL.Services
     {
         private readonly DVVDao _dvvDao = DVVDao.GetInstance();
 
-        // ===== API original =====
+        // ===== API base =====
         public string RecalcularDVV(string tabla) => _dvvDao.CalculateDVV(tabla);
 
         public string ObtenerDVV(string tabla)
         {
             var todos = _dvvDao.GetAllDVV();
             var row = todos.Find(d => string.Equals(d.tabla, tabla, StringComparison.OrdinalIgnoreCase));
-            return row != null ? row.dvv : null;
+            return row?.dvv;
         }
 
         public bool VerificarTabla(string tabla, out string dvvCalculado, out string dvvGuardado)
@@ -37,49 +37,41 @@ namespace BLL.Services
         public bool GuardarDVV(string tabla, string dvv)
             => _dvvDao.AddUpdateDVV(new DVV { tabla = tabla, dvv = dvv });
 
+        // Verifica los DVH de cada fila
         public List<DVDiscrepancia> VerificarDVH(string tabla)
         {
             var result = new List<DVDiscrepancia>();
             DataTable dt = GetTable(tabla);
 
-            var colsDv = dt.Columns.Cast<DataColumn>()
-                                   .Where(c => !string.Equals(c.ColumnName, "DVH", StringComparison.OrdinalIgnoreCase))
-                                   .ToList();
-
+            var cols = ColumnsForDVH(tabla, dt);
             var pkCols = GetPkColumns(tabla);
             if (pkCols.Count == 0) pkCols = GuessFirstColumnAsPk(dt);
 
             foreach (DataRow row in dt.Rows)
             {
-                string actual = (dt.Columns.Contains("DVH") && row["DVH"] != DBNull.Value)
-                    ? Convert.ToString(row["DVH"])
-                    : null;
+                string actual = dt.Columns.Contains("DVH") && row["DVH"] != DBNull.Value
+                                ? Convert.ToString(row["DVH"]) : null;
 
-                string calculado = ComputeDVH(row, colsDv);
-
+                string calculado = ComputeDVHFromColumns(row, cols);
                 if (!string.Equals(actual, calculado, StringComparison.Ordinal))
                 {
                     result.Add(new DVDiscrepancia
                     {
                         Tabla = tabla,
                         PK = BuildPkDisplay(row, pkCols),
-                        DVHActual = actual,
-                        DVHCalculado = calculado
+                        DVHActual = "—",        // ocultamos valor sensible
+                        DVHCalculado = "—"      // idem
                     });
                 }
             }
-
             return result;
         }
 
+        // Recalcula y actualiza DVH en BD
         public int RecalcularDVH(string tabla)
         {
             DataTable dt = GetTable(tabla);
-
-            var colsDv = dt.Columns.Cast<DataColumn>()
-                                   .Where(c => !string.Equals(c.ColumnName, "DVH", StringComparison.OrdinalIgnoreCase))
-                                   .ToList();
-
+            var cols = ColumnsForDVH(tabla, dt);
             var pkCols = GetPkColumns(tabla);
             if (pkCols.Count == 0) pkCols = GuessFirstColumnAsPk(dt);
 
@@ -89,10 +81,9 @@ namespace BLL.Services
             {
                 foreach (DataRow row in dt.Rows)
                 {
-                    string nuevo = ComputeDVH(row, colsDv);
-                    string actual = (dt.Columns.Contains("DVH") && row["DVH"] != DBNull.Value)
-                        ? Convert.ToString(row["DVH"])
-                        : null;
+                    string nuevo = ComputeDVHFromColumns(row, cols);
+                    string actual = dt.Columns.Contains("DVH") && row["DVH"] != DBNull.Value
+                                    ? Convert.ToString(row["DVH"]) : null;
 
                     if (!string.Equals(actual, nuevo, StringComparison.Ordinal))
                     {
@@ -101,7 +92,7 @@ namespace BLL.Services
                         for (int i = 0; i < pkCols.Count; i++)
                         {
                             if (i > 0) sql.Append(" AND ");
-                            sql.Append('[').Append(pkCols[i]).Append("]=").Append("@pk").Append(i);
+                            sql.Append('[').Append(pkCols[i]).Append("]=@pk").Append(i);
                         }
 
                         using (var cmd = new SqlCommand(sql.ToString(), cn))
@@ -119,6 +110,7 @@ namespace BLL.Services
             return updated;
         }
 
+        // Recalcula y guarda el DVV
         public bool RecalcularYGuardarDVV(string tabla, out string dvv)
         {
             dvv = _dvvDao.CalculateDVV(tabla);
@@ -128,7 +120,8 @@ namespace BLL.Services
             return _dvvDao.AddUpdateDVV(new DVV { tabla = tabla, dvv = dvv });
         }
 
-        // ===== Helpers =====
+        // ==================== Helpers ====================
+
         private static DataTable GetTable(string tabla)
         {
             var dt = new DataTable();
@@ -143,8 +136,7 @@ namespace BLL.Services
         private static string EscapeTable(string tabla)
         {
             var parts = tabla.Split(new[] { '.' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 2) return "[" + parts[0] + "].[" + parts[1] + "]";
-            return "[" + parts[0] + "]";
+            return parts.Length == 2 ? $"[{parts[0]}].[{parts[1]}]" : $"[{parts[0]}]";
         }
 
         private static List<string> GuessFirstColumnAsPk(DataTable dt)
@@ -165,15 +157,49 @@ namespace BLL.Services
             return string.Join("; ", parts);
         }
 
-        private static string ComputeDVH(DataRow row, IList<DataColumn> cols)
+        // ===== Mapeo de columnas por tabla =====
+        private static IReadOnlyList<string> ColumnsForDVH(string tabla, DataTable dt)
+        {
+            var t = tabla.Contains(".") ? tabla.Split('.')[1] : tabla;
+            switch (t.ToLowerInvariant())
+            {
+                case "usuario":
+                    return FilterExisting(dt, "IdUsuario", "Usuario", "Mail", "IdEstado", "NroIntentos");
+                case "familia":
+                    return FilterExisting(dt, "IdFamilia", "Nombre", "Descripcion", "Activa");
+                case "usuariopatente":
+                    return FilterExisting(dt, "IdUsuario", "IdPatente");
+                case "usuariofamilia":
+                    return FilterExisting(dt, "IdUsuario", "IdFamilia");
+                case "familiapatente":
+                    return FilterExisting(dt, "IdFamilia", "IdPatente");
+                default:
+                    // fallback: todas menos DVH
+                    return dt.Columns.Cast<DataColumn>()
+                             .Select(c => c.ColumnName)
+                             .Where(cn => !cn.Equals("DVH", StringComparison.OrdinalIgnoreCase))
+                             .ToList();
+            }
+        }
+
+        private static List<string> FilterExisting(DataTable dt, params string[] cols)
+        {
+            var set = new HashSet<string>(
+                dt.Columns.Cast<DataColumn>().Select(c => c.ColumnName),
+                StringComparer.OrdinalIgnoreCase);
+            return cols.Where(c => set.Contains(c)).ToList();
+        }
+
+        // ===== Cálculo consistente de DVH =====
+        private static string ComputeDVHFromColumns(DataRow row, IReadOnlyList<string> cols)
         {
             var sb = new StringBuilder();
             for (int i = 0; i < cols.Count; i++)
             {
-                var c = cols[i];
-                var v = row[c] == DBNull.Value ? string.Empty : Convert.ToString(row[c]);
                 if (i > 0) sb.Append('|');
-                sb.Append(v);
+                var c = cols[i];
+                var v = row.Table.Columns.Contains(c) ? row[c] : null;
+                sb.Append(ValueToString(v));
             }
 
             using (var sha = SHA256.Create())
@@ -181,8 +207,28 @@ namespace BLL.Services
                 var bytes = Encoding.UTF8.GetBytes(sb.ToString());
                 var hash = sha.ComputeHash(bytes);
                 var hex = new StringBuilder(hash.Length * 2);
-                for (int i = 0; i < hash.Length; i++) hex.Append(hash[i].ToString("X2"));
+                foreach (var b in hash) hex.Append(b.ToString("X2"));
                 return hex.ToString();
+            }
+        }
+
+        private static string ValueToString(object value)
+        {
+            if (value == null || value == DBNull.Value) return string.Empty;
+
+            switch (value)
+            {
+                case byte[] bytes:
+                    return BitConverter.ToString(bytes).Replace("-", "");
+                case bool b:
+                    return b ? "1" : "0";
+                case DateTime dt:
+                    return dt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ",
+                        System.Globalization.CultureInfo.InvariantCulture);
+                case IFormattable f:
+                    return f.ToString(null, System.Globalization.CultureInfo.InvariantCulture);
+                default:
+                    return Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
             }
         }
 
@@ -216,6 +262,7 @@ namespace BLL.Services
                 using (var rd = cmd.ExecuteReader())
                     while (rd.Read()) list.Add(rd.GetString(0));
             }
+
             return list;
         }
     }

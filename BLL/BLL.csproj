@@ -44,6 +44,7 @@
   <ItemGroup>
     <Compile Include="Bitacora.cs" />
     <Compile Include="Contracts\IRolService.cs" />
+    <Compile Include="Contracts\ITarjetaService.cs" />
     <Compile Include="Contracts\IUsuarioService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Services\BitacoraService.cs" />
@@ -54,6 +55,7 @@
     <Compile Include="Services\ICuentaService.cs" />
     <Compile Include="Services\IDVServices.cs" />
     <Compile Include="Services\RolService.cs" />
+    <Compile Include="Services\TarjetaService.cs" />
     <Compile Include="Services\UsuarioRolService.cs" />
     <Compile Include="Services\UsuarioService.cs" />
     <Compile Include="Translator.cs" />

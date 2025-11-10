@@ -1,9 +1,11 @@
-﻿using System;
+﻿// UI/MainFamilia.cs
+using System;
 using System.Linq;
 using System.Windows.Forms;
 using Krypton.Toolkit;
 using BLL.Contracts;
 using DAL;
+using UI.Seguridad;   // Perms
 
 namespace UI
 {
@@ -11,11 +13,13 @@ namespace UI
     {
         private readonly IRolService _rolSvc;
         private readonly FamiliaDao _famDao = FamiliaDao.GetInstance();
+        private readonly int _uid;
 
-        public MainFamilia(IRolService rolSvc)
+        public MainFamilia(IRolService rolSvc, int currentUserId)
         {
             InitializeComponent();
             _rolSvc = rolSvc ?? throw new ArgumentNullException(nameof(rolSvc));
+            _uid = currentUserId;
 
             Load += MainFamilia_Load;
 
@@ -33,8 +37,27 @@ namespace UI
 
         private void MainFamilia_Load(object sender, EventArgs e)
         {
+            if (!_rolSvc.TienePatente(_uid, Perms.Familia_Listar)) { Close(); return; }
+
             EnsureGridConfigured();
+
+            btnAgregar.Enabled = _rolSvc.TienePatente(_uid, Perms.Familia_Alta);
+            if (dgvFamilias.Columns.Contains("colEditar"))
+                dgvFamilias.Columns["colEditar"].Visible = _rolSvc.TienePatente(_uid, Perms.Familia_Editar);
+            if (dgvFamilias.Columns.Contains("colEliminar"))
+                dgvFamilias.Columns["colEliminar"].Visible = _rolSvc.TienePatente(_uid, Perms.Familia_Eliminar);
+
             CargarFamilias();
+
+            dgvFamilias.CellDoubleClick += (s, ev) =>
+            {
+                if (ev.RowIndex >= 0 && dgvFamilias.Columns.Contains("colId"))
+                {
+                    var val = dgvFamilias.Rows[ev.RowIndex].Cells["colId"].Value;
+                    if (val != null && int.TryParse(val.ToString(), out var id))
+                        AbrirFamilia(id, soloLectura: true); // doble click = Ver
+                }
+            };
         }
 
         private void EnsureGridConfigured()
@@ -42,6 +65,10 @@ namespace UI
             if (dgvFamilias.Columns.Count > 0) return;
 
             dgvFamilias.AutoGenerateColumns = false;
+            dgvFamilias.RowHeadersVisible = false;
+            dgvFamilias.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvFamilias.MultiSelect = false;
+            dgvFamilias.ReadOnly = true;
 
             dgvFamilias.Columns.Add(new DataGridViewTextBoxColumn { Name = "colId", DataPropertyName = "Id", Visible = false });
             dgvFamilias.Columns.Add(new DataGridViewTextBoxColumn { Name = "colNombre", HeaderText = "Nombre", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
@@ -51,6 +78,9 @@ namespace UI
             dgvFamilias.Columns.Add(new DataGridViewButtonColumn { Name = "colVer", HeaderText = "Ver", Text = "Ver", UseColumnTextForButtonValue = true, Width = 70 });
             dgvFamilias.Columns.Add(new DataGridViewButtonColumn { Name = "colEditar", HeaderText = "Editar", Text = "Editar", UseColumnTextForButtonValue = true, Width = 80 });
             dgvFamilias.Columns.Add(new DataGridViewButtonColumn { Name = "colEliminar", HeaderText = "Eliminar", Text = "Eliminar", UseColumnTextForButtonValue = true, Width = 90 });
+
+            foreach (DataGridViewColumn c in dgvFamilias.Columns)
+                if (c is DataGridViewButtonColumn) c.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
         }
 
         private static bool BoolFromAny(object f)
@@ -61,82 +91,89 @@ namespace UI
             {
                 var p = t.GetProperty(n);
                 if (p != null && p.PropertyType == typeof(bool))
-                    return (bool)p.GetValue(f);
+                    return (bool)p.GetValue(f, null);
             }
             return true;
         }
 
         private void CargarFamilias()
         {
-            try
+            dgvFamilias.Rows.Clear();
+
+            var familias = _famDao.GetAll();
+
+            var nombre = (txtNombre.Text ?? "").Trim();
+            if (!string.IsNullOrEmpty(nombre))
+                familias = familias.Where(f => (f.Name ?? "").IndexOf(nombre, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+
+            if (cboActivo.SelectedIndex >= 0) // 0=Sí, 1=No, -1=Todos
             {
-                dgvFamilias.Rows.Clear();
-
-                var familias = _famDao.GetAll();
-
-                // filtros simples
-                var nombre = (txtNombre.Text ?? "").Trim();
-                if (!string.IsNullOrEmpty(nombre))
-                    familias = familias.Where(f => (f.Name ?? "").IndexOf(nombre, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
-
-                if (cboActivo.SelectedIndex >= 0) // 0=Sí, 1=No, -1=Todos
-                {
-                    var want = cboActivo.SelectedIndex == 0;
-                    familias = familias.Where(f => BoolFromAny(f) == want).ToList();
-                }
-
-                foreach (var f in familias)
-                    dgvFamilias.Rows.Add(f.Id, f.Name, f.Descripcion, BoolFromAny(f));
-
-                if (Controls.Find("lblTotal", true).FirstOrDefault() is Label lblTotal)
-                    lblTotal.Text = $"Total: {familias.Count}";
+                var want = cboActivo.SelectedIndex == 0;
+                familias = familias.Where(f => BoolFromAny(f) == want).ToList();
             }
-            catch (Exception ex)
-            {
-                KryptonMessageBox.Show($"Error al cargar familias:\n{ex.Message}", "Familias",
-                    KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
-            }
+
+            foreach (var f in familias)
+                dgvFamilias.Rows.Add(f.Id, f.Name, f.Descripcion, BoolFromAny(f));
+
+            var lblTotal = Controls.Find("lblTotal", true).FirstOrDefault() as Label;
+            if (lblTotal != null) lblTotal.Text = "Total: " + familias.Count;
         }
-
-        // ----- ABRIR ALTAFAMILIA -----
 
         private void btnAgregar_Click(object sender, EventArgs e)
         {
-            // Alta (id null)
-            using (var frm = new AltaFamilia(_rolSvc, null))
+            if (!_rolSvc.TienePatente(_uid, Perms.Familia_Alta)) return;
+
+            using (var frm = new AltaFamilia(_rolSvc, null, _uid, soloLectura: false))
             {
                 if (frm.ShowDialog(this) == DialogResult.OK)
                     CargarFamilias();
             }
         }
 
-        private void AbrirFamilia(int idFamilia)
+        private void AbrirFamilia(int idFamilia, bool soloLectura)
         {
-            using (var frm = new AltaFamilia(_rolSvc, idFamilia))
+            using (var frm = new AltaFamilia(_rolSvc, idFamilia, _uid, soloLectura))
             {
-                if (frm.ShowDialog(this) == DialogResult.OK)
-                    CargarFamilias();
+                if (!soloLectura)
+                {
+                    if (frm.ShowDialog(this) == DialogResult.OK)
+                        CargarFamilias();
+                }
+                else
+                {
+                    frm.ShowDialog(this);
+                }
             }
         }
-
-        // ----- GRID: Ver / Editar / Eliminar -----
 
         private void dgvFamilias_CellContentClick(object sender, DataGridViewCellEventArgs e)
         {
-            if (e.RowIndex < 0) return;
+            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
 
             var grid = (DataGridView)sender;
             var col = grid.Columns[e.ColumnIndex].Name;
-            int id = Convert.ToInt32(grid.Rows[e.RowIndex].Cells["colId"].Value);
+            if (!grid.Columns.Contains("colId")) return;
 
-            if (col == "colVer" || col == "colEditar")
+            var rawId = grid.Rows[e.RowIndex].Cells["colId"].Value;
+            if (rawId == null || !int.TryParse(rawId.ToString(), out var id)) return;
+
+            if (col == "colVer")
             {
-                AbrirFamilia(id); // usa el mismo form (tu AltaFamilia maneja edición por id)
+                AbrirFamilia(id, soloLectura: true);
+                return;
+            }
+
+            if (col == "colEditar")
+            {
+                if (!_rolSvc.TienePatente(_uid, Perms.Familia_Editar)) return;
+                AbrirFamilia(id, soloLectura: false);
                 return;
             }
 
             if (col == "colEliminar")
             {
+                if (!_rolSvc.TienePatente(_uid, Perms.Familia_Eliminar)) return;
+
                 var nombre = grid.Rows[e.RowIndex].Cells["colNombre"].Value?.ToString();
                 var dr = KryptonMessageBox.Show(
                     $"¿Eliminar la familia '{nombre}'?",
@@ -144,20 +181,25 @@ namespace UI
 
                 if (dr != DialogResult.Yes) return;
 
+                var fam = _famDao.GetById(id);
+                if (fam == null) { CargarFamilias(); return; }
+
                 try
                 {
-                    var fam = _famDao.GetById(id);
-                    _famDao.Delete(fam);
-
-                    KryptonMessageBox.Show("Familia eliminada correctamente.", "Familias",
-                        KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Information);
-                    CargarFamilias();
+                    // Firma nueva: Delete(Familia familia, DVH dvh) -> bool
+                    var ok = _famDao.Delete(fam, null);
+                    if (!ok)
+                        KryptonMessageBox.Show(this, "No se pudo eliminar la familia.", "Familias",
+                            KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Warning);
                 }
                 catch (Exception ex)
                 {
-                    KryptonMessageBox.Show($"No se pudo eliminar:\n{ex.Message}", "Familias",
-                        KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Warning);
+                    KryptonMessageBox.Show(this,
+                        "No se pudo eliminar la familia.\n\n" + ex.Message,
+                        "Familias", KryptonMessageBoxButtons.OK, KryptonMessageBoxIcon.Error);
                 }
+
+                CargarFamilias();
             }
         }
     }
